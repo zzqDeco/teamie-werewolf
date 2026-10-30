@@ -1,0 +1,537 @@
+:root {
+  color-scheme: light dark;
+  --bg-page: #f4f6fa;
+  --bg-card: #ffffff;
+  --bg-subtle: #edf1f7;
+  --bg-accent-soft: #eef2ff;
+  --text-main: #111827;
+  --text-muted: #4b5563;
+  --text-faint: #6b7280;
+  --border: #dde3ee;
+  --border-strong: #c7d2e5;
+  --primary: #4f46e5;
+  --primary-hover: #4338ca;
+  --primary-fg: #ffffff;
+  --danger: #dc2626;
+  --danger-soft: #fef2f2;
+  --danger-border: #fecaca;
+  --success: #059669;
+  --success-soft: #ecfdf5;
+  --success-border: #a7f3d0;
+  --warn: #d97706;
+  --warn-soft: #fffbeb;
+  --warn-border: #fde68a;
+  --wolf-bg: #3b0d15;
+  --wolf-fg: #fecdd3;
+  --wolf-border: #9f1239;
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
+  --radius-md: 10px;
+  --radius-sm: 7px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg-page: #0d1117;
+    --bg-card: #161b22;
+    --bg-subtle: #21262d;
+    --bg-accent-soft: #1e2640;
+    --text-main: #f0f6fc;
+    --text-muted: #9ca3af;
+    --text-faint: #6e7681;
+    --border: #30363d;
+    --border-strong: #484f58;
+    --primary: #6366f1;
+    --primary-hover: #818cf8;
+    --primary-fg: #ffffff;
+    --danger: #f87171;
+    --danger-soft: #2d1216;
+    --danger-border: #7f1d1d;
+    --success: #34d399;
+    --success-soft: #0d281f;
+    --success-border: #065f46;
+    --warn: #fbbf24;
+    --warn-soft: #2b210c;
+    --warn-border: #92400e;
+    --wolf-bg: #270910;
+    --wolf-fg: #fda4af;
+    --wolf-border: #be123c;
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.35);
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg-page);
+  color: var(--text-main);
+  font-size: 13px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Narrow drawer shell: optimized for 320px-380px width, min-height 360px */
+.ww-drawer {
+  width: 100%;
+  max-width: 440px;
+  min-height: 360px;
+  margin: 0 auto;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ww-drawer.phase-night {
+  background: linear-gradient(180deg, rgba(30, 27, 75, 0.14) 0%, transparent 180px);
+}
+
+.ww-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 10px;
+  box-shadow: var(--shadow-sm);
+}
+
+.ww-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.ww-phase-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: 700;
+  font-size: 12px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--bg-accent-soft);
+  color: var(--primary);
+}
+
+.ww-phase-pill.is-night {
+  background: #312e81;
+  color: #e0e7ff;
+}
+
+.ww-phase-pill.is-over {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.ww-timer-badge {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  font-size: 11px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--bg-subtle);
+  color: var(--text-muted);
+}
+
+.ww-timer-badge.urgent {
+  background: var(--danger-soft);
+  color: var(--danger);
+  border: 1px solid var(--danger-border);
+}
+
+.ww-me-strip {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.ww-me-name {
+  font-weight: 600;
+  font-size: 12.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ww-role-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-subtle);
+  cursor: pointer;
+  user-select: none;
+}
+
+.ww-role-chip.role-WEREWOLF {
+  background: var(--danger-soft);
+  color: var(--danger);
+  border-color: var(--danger-border);
+}
+
+.ww-role-chip.role-SEER {
+  background: var(--bg-accent-soft);
+  color: var(--primary);
+}
+
+.ww-role-chip.role-WITCH {
+  background: var(--success-soft);
+  color: var(--success);
+  border-color: var(--success-border);
+}
+
+.ww-role-chip.role-HUNTER {
+  background: var(--warn-soft);
+  color: var(--warn);
+  border-color: var(--warn-border);
+}
+
+/* Public Chat Policy Callout */
+.ww-policy-banner {
+  border-radius: var(--radius-md);
+  padding: 8px 10px;
+  font-size: 12px;
+  border: 1px solid var(--border);
+  background: var(--bg-subtle);
+}
+
+.ww-policy-banner.locked {
+  background: var(--danger-soft);
+  border-color: var(--danger-border);
+  color: var(--danger);
+}
+
+.ww-policy-banner.my-mic {
+  background: var(--success-soft);
+  border-color: var(--success-border);
+  color: var(--success);
+  font-weight: 600;
+}
+
+.ww-policy-banner.wait-mic {
+  background: var(--warn-soft);
+  border-color: var(--warn-border);
+  color: var(--warn);
+}
+
+/* Compact Seat Grid */
+.ww-section-title {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text-muted);
+  margin: 0 0 6px 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ww-seats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.ww-seat-tile {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 6px;
+  background: var(--bg-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  position: relative;
+}
+
+.ww-seat-tile.is-me {
+  border-color: var(--primary);
+  background: var(--bg-accent-soft);
+}
+
+.ww-seat-tile.is-speaking {
+  border-color: var(--success);
+  box-shadow: 0 0 0 1px var(--success);
+}
+
+.ww-seat-tile.is-dead {
+  opacity: 0.56;
+}
+
+.ww-seat-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 3px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.ww-seat-name {
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ww-seat-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  min-height: 15px;
+}
+
+.ww-mini-tag {
+  font-size: 10px;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+}
+
+.ww-mini-tag.wolf {
+  background: var(--danger-soft);
+  color: var(--danger);
+  border-color: var(--danger-border);
+}
+
+.ww-mini-tag.mic {
+  background: var(--success-soft);
+  color: var(--success);
+  border-color: var(--success-border);
+}
+
+/* Buttons & Inputs */
+.ww-btn {
+  appearance: none;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-subtle);
+  color: var(--text-main);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 7px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+  text-align: center;
+}
+
+.ww-btn:hover:not(:disabled) {
+  border-color: var(--primary);
+}
+
+.ww-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ww-btn-primary {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--primary-fg);
+}
+
+.ww-btn-primary:hover:not(:disabled) {
+  background: var(--primary-hover);
+}
+
+.ww-btn-danger {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #ffffff;
+}
+
+.ww-btn-selected {
+  border-color: var(--primary);
+  background: var(--bg-accent-soft);
+  color: var(--primary);
+}
+
+.ww-btn-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.ww-btn-full {
+  width: 100%;
+}
+
+.ww-target-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+  margin-top: 6px;
+}
+
+.ww-input {
+  width: 100%;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-page);
+  color: var(--text-main);
+  border-radius: var(--radius-sm);
+  padding: 6px 8px;
+  font-size: 12px;
+}
+
+/* Wolf Dark Channel */
+.ww-wolf-box {
+  background: var(--wolf-bg);
+  color: var(--wolf-fg);
+  border: 1px solid var(--wolf-border);
+  border-radius: var(--radius-md);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ww-wolf-log {
+  max-height: 96px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11.5px;
+}
+
+.ww-wolf-form {
+  display: flex;
+  gap: 5px;
+}
+
+/* Notice / Toast */
+.ww-feedback {
+  font-size: 11.5px;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-accent-soft);
+  color: var(--primary);
+}
+
+.ww-feedback.err {
+  background: var(--danger-soft);
+  color: var(--danger);
+  border: 1px solid var(--danger-border);
+}
+
+/* Bottom Tabs: Timeline & Vote History */
+.ww-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.ww-tab {
+  flex: 1;
+  padding: 4px 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.ww-tab.active {
+  background: var(--bg-subtle);
+  border-color: var(--border);
+  color: var(--text-main);
+}
+
+.ww-log-list {
+  max-height: 135px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.ww-log-item {
+  padding: 4px 6px;
+  border-radius: 5px;
+  background: var(--bg-subtle);
+}
+
+.ww-handshake-wait {
+  min-height: 320px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 8px;
+  padding: 20px;
+  color: var(--text-muted);
+}
+
+/* /dev Multi-Player Simulator Workbench */
+.dev-shell {
+  padding: 14px;
+  min-height: 100vh;
+}
+
+.dev-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 10px 14px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.dev-frames-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(344px, 1fr));
+  gap: 12px;
+}
+
+.dev-frame-wrap {
+  background: var(--bg-card);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.dev-frame-header {
+  padding: 6px 10px;
+  background: var(--bg-subtle);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.dev-iframe {
+  width: 100%;
+  height: 560px;
+  border: 0;
+  background: var(--bg-page);
+}

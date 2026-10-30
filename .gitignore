@@ -1,0 +1,22 @@
+# Dependencies & build artifacts
+/bin/
+/werewolf
+/web/node_modules/
+/web/dist/
+*.tsbuildinfo
+*.test
+*.out
+coverage.txt
+
+# Secrets & local env (NEVER commit TEAMIE_APP_ID / TEAMIE_APP_SIGNING_SECRET)
+.env
+.env.*
+!.env.example
+deploy/production.env
+deploy/tls/*.crt
+deploy/tls/*.key
+
+# OS / IDE
+.DS_Store
+.idea/
+.vscode/
