@@ -1,0 +1,37 @@
+{
+	admin off
+	auto_https disable_redirects
+}
+
+https://:9443 {
+	tls /etc/caddy/tls/fullchain.pem /etc/caddy/tls/privkey.pem
+	encode zstd gzip
+
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		Content-Security-Policy "frame-ancestors {$TEAMIE_ORIGIN}"
+		-X-Frame-Options
+		-Server
+	}
+
+	@realtime path /mcp /mcp/* /api/stream /api/stream/*
+	handle @realtime {
+		reverse_proxy werewolf:8080 {
+			flush_interval -1
+			transport http {
+				read_timeout 24h
+				write_timeout 24h
+			}
+		}
+	}
+
+	handle {
+		reverse_proxy werewolf:8080
+	}
+}
+
+# Internal container liveness probe (not published to host)
+http://:18080 {
+	respond /healthz "ok" 200
+}

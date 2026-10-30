@@ -1,0 +1,83 @@
+name: teamie-werewolf
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: "3"
+
+services:
+  caddy:
+    image: ${CADDY_IMAGE:?caddy image required}
+    restart: unless-stopped
+    read_only: true
+    mem_limit: 64m
+    memswap_limit: 64m
+    pids_limit: 64
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    ports:
+      - "${PUBLIC_HTTPS_PORT:-9443}:9443"
+    environment:
+      TEAMIE_ORIGIN: ${TEAMIE_ORIGIN:-https://120.25.210.202}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ${TLS_CERT_DIR:-/srv/teamie-werewolf/tls}:/etc/caddy/tls:ro
+    tmpfs:
+      - /data:size=8m,mode=0755
+      - /config:size=4m,mode=0755
+      - /tmp:size=4m,mode=1777
+    networks:
+      - edge
+      - private
+    logging: *logging
+    depends_on:
+      werewolf:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:18080/healthz"]
+      interval: 15s
+      timeout: 3s
+      retries: 6
+
+  werewolf:
+    image: ${WEREWOLF_IMAGE:?werewolf image required}
+    restart: unless-stopped
+    init: true
+    read_only: true
+    mem_limit: 128m
+    memswap_limit: 128m
+    pids_limit: 128
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    environment:
+      PORT: "8080"
+      TEAMIE_APP_ID: ${TEAMIE_APP_ID:?TEAMIE_APP_ID required}
+      TEAMIE_APP_SIGNING_SECRET: ${TEAMIE_APP_SIGNING_SECRET:?TEAMIE_APP_SIGNING_SECRET required}
+      TEAMIE_ORIGIN: ${TEAMIE_ORIGIN:-https://120.25.210.202}
+      PHASE_TIMEOUT_SEC: ${PHASE_TIMEOUT_SEC:-90}
+      DEV_SIMULATOR: "false"
+      GOMEMLIMIT: 96MiB
+      GOMAXPROCS: "2"
+    networks:
+      - private
+    logging: *logging
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/readyz"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+networks:
+  edge: {}
+  private:
+    internal: true
