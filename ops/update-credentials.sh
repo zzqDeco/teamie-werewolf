@@ -34,5 +34,7 @@ subprocess.run([
 print("Updated TEAMIE_APP_ID & TEAMIE_APP_SIGNING_SECRET and recreated werewolf container.")
 '
 
+B64_SCRIPT=$(printf '%s' "$REMOTE_SCRIPT" | base64 | tr -d '\n')
+
 python3 -c 'import json,os,sys; json.dump({"app_id":os.environ["TEAMIE_APP_ID"].strip(),"signing_secret":os.environ["TEAMIE_APP_SIGNING_SECRET"].strip()},sys.stdout)' \
-  | ssh -o BatchMode=yes "$SSH_TARGET" python3 -c "$REMOTE_SCRIPT"
+  | ssh -o BatchMode=yes "$SSH_TARGET" "python3 -c 'import base64,sys; exec(base64.b64decode(sys.argv[1]))' '$B64_SCRIPT'"
