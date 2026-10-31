@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"log/slog"
 	"math/big"
 	"sort"
 	"strings"
@@ -19,6 +20,49 @@ var (
 	ErrForbiddenRole = errors.New("forbidden for current role or seat")
 	ErrWrongPhase    = errors.New("action not allowed in current phase")
 )
+
+// ActionError wraps a domain sentinel error with a machine-readable code and localized message.
+type ActionError struct {
+	Kind    error
+	Code    string
+	Message string
+}
+
+func (e *ActionError) Error() string {
+	return e.Message
+}
+
+func (e *ActionError) Unwrap() error {
+	return e.Kind
+}
+
+// NewActionError constructs a typed domain rejection error.
+func NewActionError(kind error, code, msg string) error {
+	return &ActionError{
+		Kind:    kind,
+		Code:    code,
+		Message: msg,
+	}
+}
+
+// ErrorCodeOf extracts a stable machine-readable errorCode from any domain error.
+func ErrorCodeOf(err error) string {
+	if err == nil {
+		return ""
+	}
+	var ae *ActionError
+	if errors.As(err, &ae) && ae.Code != "" {
+		return ae.Code
+	}
+	switch {
+	case errors.Is(err, ErrForbiddenRole):
+		return "forbidden_role"
+	case errors.Is(err, ErrWrongPhase):
+		return "wrong_phase"
+	default:
+		return "invalid_action"
+	}
+}
 
 type playerState struct {
 	Seat        int
@@ -52,19 +96,20 @@ type Room struct {
 	players []*playerState // sorted 1..N
 
 	// Night state
-	nightStep          NightStep
-	wolfVotes          map[int]int // wolfSeat -> targetSeat (0 = empty knife)
-	lastWolfVoter      int
-	wolfLockedTarget   int
-	wolfChat           []WolfChatEntry
-	wolfChatSeq        int64
-	seerCheckedRound   int
-	seerChecks         []SeerCheckRecord
-	antidoteLeft       bool
-	poisonLeft         bool
-	witchActed         bool
-	witchSaved         bool
-	witchPoisonTarget  int
+	nightStep           NightStep
+	wolfVotes           map[int]int // wolfSeat -> targetSeat (0 = empty knife)
+	lastWolfVoter       int
+	wolfLockedTarget    int
+	wolfChat            []WolfChatEntry
+	wolfChatSeq         int64
+	seerCheckedRound    int
+	seerStepClosed      bool
+	seerChecks          []SeerCheckRecord
+	antidoteLeft        bool
+	poisonLeft          bool
+	witchActed          bool
+	witchSaved          bool
+	witchPoisonTarget   int
 	lastNightCasualties []int
 
 	// Hunter state
@@ -79,6 +124,9 @@ type Room struct {
 	// Day vote state
 	dayVotes    map[int]int // voterSeat -> targetSeat (0 = abstain), secret until tallied
 	voteHistory []VoteTallyRecord
+
+	// Post-game unseat tracking (preserves GAME_OVER recap scoreboard while letting players vacate)
+	postGameLeft map[string]bool
 
 	// Public timeline & winner
 	publicEvents []PublicEvent
@@ -121,6 +169,7 @@ func NewRoom(
 		wolfVotes:       make(map[int]int),
 		spokenSeats:     make(map[int]bool),
 		dayVotes:        make(map[int]int),
+		postGameLeft:    make(map[string]bool),
 		idemCache:       make(map[string]cachedAction),
 		onNotifications: onNotifications,
 		onRoomUpdated:   onRoomUpdated,
@@ -250,15 +299,20 @@ func (r *Room) JoinLobby(claims auth.Claims, requestedPreset string, idemKey str
 		r.resetToFreshLobbyLocked()
 	}
 	if r.phase != PhaseLobby {
+		phase := r.phase
 		r.mu.Unlock()
-		return ActionResponse{}, fmt.Errorf("%w: 对局进行中（当前阶段 %s），无法中途入座", ErrWrongPhase, r.phase)
+		return ActionResponse{}, NewActionError(
+			ErrWrongPhase,
+			"game_in_progress",
+			fmt.Sprintf("对局已在进行中（当前阶段 %s），无法中途入座；请查看 view 按当前牌局状态行动", phase),
+		)
 	}
 
 	if requestedPreset != "" {
 		p := Preset(strings.ToLower(strings.TrimSpace(requestedPreset)))
 		if p != Preset6P && p != Preset9P {
 			r.mu.Unlock()
-			return ActionResponse{}, fmt.Errorf("%w: preset 仅支持 6p 或 9p", ErrInvalidAction)
+			return ActionResponse{}, NewActionError(ErrInvalidAction, "invalid_preset", "preset 仅支持 6p 或 9p")
 		}
 		target := PresetTargetCount(p)
 		if len(r.players) <= target && (len(r.players) == 0 || r.players[0].UserID == claims.UserID) {
@@ -276,8 +330,14 @@ func (r *Room) JoinLobby(claims auth.Claims, requestedPreset string, idemKey str
 	} else {
 		maxPlayers := PresetTargetCount(r.preset)
 		if len(r.players) >= maxPlayers {
+			preset := r.preset
+			cur := len(r.players)
 			r.mu.Unlock()
-			return ActionResponse{}, fmt.Errorf("%w: 当前 %s 房间座位已满（%d/%d）", ErrInvalidAction, r.preset, len(r.players), maxPlayers)
+			return ActionResponse{}, NewActionError(
+				ErrInvalidAction,
+				"room_full",
+				fmt.Sprintf("当前 %s 房间座位已满（%d/%d），无法继续入座", preset, cur, maxPlayers),
+			)
 		}
 		seat := len(r.players) + 1
 		r.players = append(r.players, &playerState{
@@ -319,37 +379,69 @@ func (r *Room) JoinLobby(claims auth.Claims, requestedPreset string, idemKey str
 	return resp, nil
 }
 
-// LeaveLobby removes the caller's seat while in LOBBY and compacts seat numbers 1..K.
+// LeaveLobby removes the caller's seat while in LOBBY (compacting 1..K),
+// or marks the caller as having vacated the table after GAME_OVER (resetting to empty LOBBY once all players leave).
 func (r *Room) LeaveLobby(claims auth.Claims, idemKey string) (ActionResponse, error) {
 	r.mu.Lock()
 	if replay, ok := r.checkIdempotencyLocked(claims, idemKey); ok {
 		r.mu.Unlock()
 		return *replay, nil
 	}
-	if r.phase != PhaseLobby {
+	if r.phase != PhaseLobby && r.phase != PhaseGameOver {
+		phase := r.phase
 		r.mu.Unlock()
-		return ActionResponse{}, fmt.Errorf("%w: 仅大厅准备阶段（LOBBY）允许离座", ErrWrongPhase)
+		return ActionResponse{}, NewActionError(
+			ErrWrongPhase,
+			"game_in_progress",
+			fmt.Sprintf("对局进行中（当前阶段 %s），无法中途离座；需等待 GAME_OVER 对局结束后方可退座", phase),
+		)
 	}
 
-	idx := -1
-	for i, p := range r.players {
-		if p.UserID == claims.UserID {
-			idx = i
-			break
-		}
-	}
 	var msg string
-	if idx < 0 {
-		msg = "你当前未在座位上。"
-	} else {
-		oldSeat := r.players[idx].Seat
-		r.players = append(r.players[:idx], r.players[idx+1:]...)
-		for i, p := range r.players {
-			p.Seat = i + 1
+	if r.phase == PhaseGameOver {
+		caller := r.findPlayerByUserLocked(claims.UserID)
+		if caller == nil || r.postGameLeft[claims.UserID] {
+			msg = "你已离席散场（当前不在座位上）。"
+		} else {
+			if r.postGameLeft == nil {
+				r.postGameLeft = make(map[string]bool)
+			}
+			r.postGameLeft[claims.UserID] = true
+			allLeft := len(r.players) > 0
+			for _, p := range r.players {
+				if !r.postGameLeft[p.UserID] {
+					allLeft = false
+					break
+				}
+			}
+			if allLeft {
+				r.resetToFreshLobbyLocked()
+				msg = "全员已离席散场，房间已清空回空闲准备大厅（0/6）。"
+			} else {
+				r.bumpSeqLocked()
+				msg = "已离席散场（本局复盘面板仍保留展示；如需开启新一局可调用 join_lobby）。"
+			}
 		}
-		r.bumpSeqLocked()
-		r.appendPublicEventLocked(fmt.Sprintf("%s 离开了原 %d 号座位（当前 %d/%d）。", claims.DisplayName, oldSeat, len(r.players), PresetTargetCount(r.preset)))
-		msg = "已离开大厅座位。"
+	} else {
+		idx := -1
+		for i, p := range r.players {
+			if p.UserID == claims.UserID {
+				idx = i
+				break
+			}
+		}
+		if idx < 0 {
+			msg = "你当前未在座位上。"
+		} else {
+			oldSeat := r.players[idx].Seat
+			r.players = append(r.players[:idx], r.players[idx+1:]...)
+			for i, p := range r.players {
+				p.Seat = i + 1
+			}
+			r.bumpSeqLocked()
+			r.appendPublicEventLocked(fmt.Sprintf("%s 离开了原 %d 号座位（当前 %d/%d）。", claims.DisplayName, oldSeat, len(r.players), PresetTargetCount(r.preset)))
+			msg = "已离开大厅座位。"
+		}
 	}
 
 	r.storeIdempotencyLocked(claims.UserID, idemKey, "leave_lobby", msg)
@@ -374,18 +466,20 @@ func (r *Room) ConfigureLobby(claims auth.Claims, presetStr string, phaseTimeout
 		return *replay, nil
 	}
 	if r.phase != PhaseLobby {
+		phase := r.phase
 		r.mu.Unlock()
-		return ActionResponse{}, fmt.Errorf("%w: 仅大厅阶段可调整板子配置", ErrWrongPhase)
+		return ActionResponse{}, NewActionError(ErrWrongPhase, "wrong_phase", fmt.Sprintf("仅大厅准备阶段可调整板子配置（当前阶段 %s）", phase))
 	}
 	if presetStr != "" {
 		p := Preset(strings.ToLower(strings.TrimSpace(presetStr)))
 		if p != Preset6P && p != Preset9P {
 			r.mu.Unlock()
-			return ActionResponse{}, fmt.Errorf("%w: preset 仅支持 6p 或 9p", ErrInvalidAction)
+			return ActionResponse{}, NewActionError(ErrInvalidAction, "invalid_preset", "preset 仅支持 6p 或 9p")
 		}
 		if len(r.players) > PresetTargetCount(p) {
+			cur := len(r.players)
 			r.mu.Unlock()
-			return ActionResponse{}, fmt.Errorf("%w: 当前已入座 %d 人，超过 %s 上限", ErrInvalidAction, len(r.players), p)
+			return ActionResponse{}, NewActionError(ErrInvalidAction, "invalid_preset", fmt.Sprintf("当前已入座 %d 人，超过 %s 上限", cur, p))
 		}
 		r.preset = p
 	}
@@ -393,6 +487,7 @@ func (r *Room) ConfigureLobby(claims auth.Claims, presetStr string, phaseTimeout
 		r.phaseTimeoutSec = phaseTimeoutSec
 		d := time.Duration(phaseTimeoutSec) * time.Second
 		r.timings.NightTimeout = d
+		r.timings.WitchTimeout = d
 		r.timings.SpeakerTurnTimeout = d
 		r.timings.VoteTimeout = d
 	}
@@ -420,19 +515,24 @@ func (r *Room) StartGame(claims auth.Claims, presetStr string, phaseTimeoutSec i
 		return *replay, nil
 	}
 	if r.phase != PhaseLobby {
+		phase := r.phase
 		r.mu.Unlock()
-		return ActionResponse{}, fmt.Errorf("%w: 当前不在大厅准备阶段（%s）", ErrWrongPhase, r.phase)
+		return ActionResponse{}, NewActionError(
+			ErrWrongPhase,
+			"game_already_started",
+			fmt.Sprintf("对局已处于 %s 阶段（已由其他玩家开局），无需重复调用 start_game；请直接查看返回中的 view 按当前阶段行动", phase),
+		)
 	}
 	caller := r.findPlayerByUserLocked(claims.UserID)
 	if caller == nil {
 		r.mu.Unlock()
-		return ActionResponse{}, fmt.Errorf("%w: 只有已入座玩家可发牌开局", ErrForbiddenRole)
+		return ActionResponse{}, NewActionError(ErrForbiddenRole, "not_seated", "只有已入座玩家可发牌开局，请先调用 join_lobby")
 	}
 	if presetStr != "" {
 		p := Preset(strings.ToLower(strings.TrimSpace(presetStr)))
 		if p != Preset6P && p != Preset9P {
 			r.mu.Unlock()
-			return ActionResponse{}, fmt.Errorf("%w: preset 仅支持 6p 或 9p", ErrInvalidAction)
+			return ActionResponse{}, NewActionError(ErrInvalidAction, "invalid_preset", "preset 仅支持 6p 或 9p")
 		}
 		r.preset = p
 	}
@@ -440,14 +540,21 @@ func (r *Room) StartGame(claims auth.Claims, presetStr string, phaseTimeoutSec i
 		r.phaseTimeoutSec = phaseTimeoutSec
 		d := time.Duration(phaseTimeoutSec) * time.Second
 		r.timings.NightTimeout = d
+		r.timings.WitchTimeout = d
 		r.timings.SpeakerTurnTimeout = d
 		r.timings.VoteTimeout = d
 	}
 
 	expected := PresetTargetCount(r.preset)
 	if len(r.players) != expected {
+		preset := r.preset
+		cur := len(r.players)
 		r.mu.Unlock()
-		return ActionResponse{}, fmt.Errorf("%w: 人数未满，%s 需要 %d 名玩家，当前仅 %d 人入座", ErrInvalidAction, r.preset, expected, len(r.players))
+		return ActionResponse{}, NewActionError(
+			ErrInvalidAction,
+			"lobby_not_full",
+			fmt.Sprintf("人数未满，%s 需要 %d 名玩家，当前仅 %d 人入座", preset, expected, cur),
+		)
 	}
 
 	deck := PresetDeck(r.preset)
@@ -470,13 +577,21 @@ func (r *Room) StartGame(claims auth.Claims, presetStr string, phaseTimeoutSec i
 	r.wolfChatSeq = 0
 	r.seerChecks = nil
 	r.seerCheckedRound = 0
+	r.seerStepClosed = false
 	r.voteHistory = nil
+	r.postGameLeft = make(map[string]bool)
 	r.winner = ""
 	r.winReason = ""
 	r.pendingHunterSeat = 0
 
 	r.bumpSeqLocked()
 	r.appendPublicEventLocked(fmt.Sprintf("游戏正式开始（%s 板子），天黑请闭眼，进入第 1 夜！", r.preset))
+	slog.Info("room_game_started",
+		"convId", r.conversationID,
+		"preset", r.preset,
+		"players", len(r.players),
+		"phaseTimeoutSec", r.phaseTimeoutSec,
+	)
 	notifs := r.enterNightLocked()
 
 	msg := fmt.Sprintf("发牌完成！你的底牌是【%s】（%d号位），已进入第 1 夜。", RoleLabel(caller.Role), caller.Seat)
@@ -502,19 +617,20 @@ func (r *Room) WolfChat(claims auth.Claims, rawMsg string, idemKey string) (Acti
 		return *replay, nil
 	}
 	if r.phase != PhaseNight {
+		phase := r.phase
 		r.mu.Unlock()
-		return ActionResponse{}, fmt.Errorf("%w: 狼人暗频仅在夜间（NIGHT）开放", ErrWrongPhase)
+		return ActionResponse{}, NewActionError(ErrWrongPhase, "wrong_phase", fmt.Sprintf("狼人暗频仅在夜间（NIGHT）开放，当前阶段为 %s", phase))
 	}
 	caller := r.findPlayerByUserLocked(claims.UserID)
 	if caller == nil || !caller.Alive || caller.Role != RoleWerewolf {
 		r.mu.Unlock()
-		return ActionResponse{}, fmt.Errorf("%w: 仅存活狼人可使用狼人暗频", ErrForbiddenRole)
+		return ActionResponse{}, NewActionError(ErrForbiddenRole, "forbidden_role", "仅存活狼人可使用狼人暗频")
 	}
 
 	text := strings.TrimSpace(rawMsg)
 	if text == "" {
 		r.mu.Unlock()
-		return ActionResponse{}, fmt.Errorf("%w: 暗聊内容不能为空", ErrInvalidAction)
+		return ActionResponse{}, NewActionError(ErrInvalidAction, "empty_message", "暗聊内容不能为空")
 	}
 	if utf8.RuneCountInString(text) > 240 {
 		runes := []rune(text)
@@ -544,7 +660,7 @@ func (r *Room) WolfChat(claims auth.Claims, rawMsg string, idemKey string) (Acti
 				"wolf_chat_message",
 				p,
 				fmt.Sprintf("【狼人暗频】%d号(%s)：%s", caller.Seat, caller.DisplayName, truncateRunes(text, 120)),
-				"你可通过 wolf_chat 回复战术，或调用 cast_night_action(actionType=\"kill\", targetSeat=...) 锁定袭击目标。严禁调用 im_send_message 在公屏发言！",
+				"你可通过 wolf_chat 回复战术，或调用 cast_night_action(actionType=\"kill\", targetSeat=...) 统一袭击目标。严禁调用 im_send_message 在公屏发言！",
 			))
 		}
 	}
@@ -572,13 +688,18 @@ func (r *Room) CastNightAction(claims auth.Claims, actionType string, targetSeat
 		return *replay, nil
 	}
 	if r.phase != PhaseNight {
+		phase := r.phase
 		r.mu.Unlock()
-		return ActionResponse{}, fmt.Errorf("%w: 当前不是黑夜阶段（%s）", ErrWrongPhase, r.phase)
+		return ActionResponse{}, NewActionError(
+			ErrWrongPhase,
+			"phase_expired",
+			fmt.Sprintf("黑夜阶段已结束（当前为 %s），请查看返回中的最新 view 按白天阶段行动", phase),
+		)
 	}
 	caller := r.findPlayerByUserLocked(claims.UserID)
 	if caller == nil || !caller.Alive {
 		r.mu.Unlock()
-		return ActionResponse{}, fmt.Errorf("%w: 仅存活入座玩家可执行夜间行动", ErrForbiddenRole)
+		return ActionResponse{}, NewActionError(ErrForbiddenRole, "forbidden_role", "仅存活入座玩家可执行夜间行动")
 	}
 
 	act := strings.ToLower(strings.TrimSpace(actionType))
@@ -589,11 +710,15 @@ func (r *Room) CastNightAction(claims auth.Claims, actionType string, targetSeat
 	case RoleWerewolf:
 		if r.nightStep != NightStepWolvesAndSeer {
 			r.mu.Unlock()
-			return ActionResponse{}, fmt.Errorf("%w: 本夜狼人袭击目标已锁定，请等待天亮", ErrWrongPhase)
+			return ActionResponse{}, NewActionError(
+				ErrWrongPhase,
+				"wolf_target_locked",
+				"本夜狼队已全员达成一致并锁定袭击目标，正在等待神职行动与天亮",
+			)
 		}
 		if act != "kill" && act != "pass" {
 			r.mu.Unlock()
-			return ActionResponse{}, fmt.Errorf("%w: 狼人仅支持 actionType=\"kill\" 或 \"pass\"", ErrInvalidAction)
+			return ActionResponse{}, NewActionError(ErrInvalidAction, "invalid_action", "狼人仅支持 actionType=\"kill\" 或 \"pass\"")
 		}
 		if act == "pass" {
 			targetSeat = 0
@@ -602,32 +727,76 @@ func (r *Room) CastNightAction(claims auth.Claims, actionType string, targetSeat
 			tp := r.findPlayerBySeatLocked(targetSeat)
 			if tp == nil || !tp.Alive {
 				r.mu.Unlock()
-				return ActionResponse{}, fmt.Errorf("%w: 目标座位 %d 不存在或已出局", ErrInvalidAction, targetSeat)
+				return ActionResponse{}, NewActionError(ErrInvalidAction, "invalid_target", fmt.Sprintf("目标座位 %d 不存在或已出局", targetSeat))
 			}
 		}
 		r.wolfVotes[caller.Seat] = targetSeat
 		r.lastWolfVoter = caller.Seat
-		if targetSeat == 0 {
-			msg = "已提交今夜空刀选择。"
-		} else {
-			msg = fmt.Sprintf("已提交今夜袭击目标：%d号。", targetSeat)
-		}
 		r.bumpSeqLocked()
+
+		targetDesc := "空刀"
+		if targetSeat > 0 {
+			targetDesc = fmt.Sprintf("%d号", targetSeat)
+		}
+		unanimous, _ := r.aliveWolvesUnanimousLocked()
+		allVoted := r.allAliveWolvesVotedLocked()
+		breakdown := r.wolfVotesSummaryLocked()
+
+		if unanimous {
+			msg = fmt.Sprintf("狼队意见达成一致，已锁定今夜袭击目标：%s！", targetDesc)
+			for _, p := range r.players {
+				if p.Alive && p.Role == RoleWerewolf && p.UserID != caller.UserID {
+					notifs = append(notifs, r.makeNotificationLocked(
+						p.UserID,
+						"wolf_target_locked",
+						p,
+						fmt.Sprintf("【狼队锁刀】%d号已确认一致目标，今夜袭击锁定为 %s，静候天亮。", caller.Seat, targetDesc),
+						"今夜狼队袭击目标已锁定，严禁调用 im_send_message 在公屏发言，请等待天亮。",
+					))
+				}
+			}
+		} else if allVoted {
+			msg = fmt.Sprintf("已提交袭击意向：%s。当前狼队票型分歧（%s），暂未锁刀！请用 wolf_chat 协商或调用 cast_night_action 统一同一目标后立即锁刀（超时则按多数/后落票结算）。", targetDesc, breakdown)
+			for _, p := range r.players {
+				if p.Alive && p.Role == RoleWerewolf && p.UserID != caller.UserID {
+					notifs = append(notifs, r.makeNotificationLocked(
+						p.UserID,
+						"wolf_vote_conflict",
+						p,
+						fmt.Sprintf("【狼队分歧】%d号选择了 %s，当前票型：%s（意见未统一，暂未锁刀）。", caller.Seat, targetDesc, breakdown),
+						"请通过 wolf_chat 协商刀法，或调用 cast_night_action 改为同一目标以立即锁定刀口。严禁在公屏发言！",
+					))
+				}
+			}
+		} else {
+			msg = fmt.Sprintf("已提交袭击意向：%s（当前已投：%s）。在狼队全员达成一致锁刀前你仍可修改目标，正等待队友落票。", targetDesc, breakdown)
+			for _, p := range r.players {
+				if p.Alive && p.Role == RoleWerewolf && p.UserID != caller.UserID {
+					notifs = append(notifs, r.makeNotificationLocked(
+						p.UserID,
+						"wolf_vote_updated",
+						p,
+						fmt.Sprintf("【狼队刀口提议】%d号提议袭击 %s（当前已投：%s）。", caller.Seat, targetDesc, breakdown),
+						"若同意请对同一目标调用 cast_night_action 锁定刀口，或用 wolf_chat 商议其他目标。严禁在公屏发言！",
+					))
+				}
+			}
+		}
 		notifs = append(notifs, r.advanceNightProgressLocked()...)
 
 	case RoleSeer:
 		if act != "check" {
 			r.mu.Unlock()
-			return ActionResponse{}, fmt.Errorf("%w: 预言家仅支持 actionType=\"check\"", ErrInvalidAction)
+			return ActionResponse{}, NewActionError(ErrInvalidAction, "invalid_action", "预言家仅支持 actionType=\"check\"")
 		}
 		if r.seerCheckedRound == r.round {
 			r.mu.Unlock()
-			return ActionResponse{}, fmt.Errorf("%w: 本夜你已完成过身份查验", ErrInvalidAction)
+			return ActionResponse{}, NewActionError(ErrInvalidAction, "already_acted", "本夜你已完成过身份查验，请静候天亮")
 		}
 		tp := r.findPlayerBySeatLocked(targetSeat)
 		if tp == nil || !tp.Alive || tp.Seat == caller.Seat {
 			r.mu.Unlock()
-			return ActionResponse{}, fmt.Errorf("%w: 请选择一名除自己以外的存活玩家座位进行查验", ErrInvalidAction)
+			return ActionResponse{}, NewActionError(ErrInvalidAction, "invalid_target", "请选择一名除自己以外的存活玩家座位进行查验")
 		}
 		align := AlignmentGood
 		alignLabel := "好人（金水）"
@@ -649,21 +818,21 @@ func (r *Room) CastNightAction(claims auth.Claims, actionType string, targetSeat
 	case RoleWitch:
 		if r.nightStep != NightStepWitch {
 			r.mu.Unlock()
-			return ActionResponse{}, fmt.Errorf("%w: 请等待狼人锁定袭击目标后再使用女巫技能", ErrWrongPhase)
+			return ActionResponse{}, NewActionError(ErrWrongPhase, "wait_for_wolves", "狼队尚未锁定袭击目标，请等待收到 your_turn_night_witch 通知后再使用女巫技能")
 		}
 		if r.witchActed {
 			r.mu.Unlock()
-			return ActionResponse{}, fmt.Errorf("%w: 本夜女巫已完成行动", ErrInvalidAction)
+			return ActionResponse{}, NewActionError(ErrInvalidAction, "already_acted", "本夜女巫已完成行动")
 		}
 		switch act {
 		case "save":
 			if !r.antidoteLeft {
 				r.mu.Unlock()
-				return ActionResponse{}, fmt.Errorf("%w: 你的解药已经用完", ErrInvalidAction)
+				return ActionResponse{}, NewActionError(ErrInvalidAction, "no_antidote", "你的解药已经用完，请选择 pass 或 poison")
 			}
 			if r.wolfLockedTarget <= 0 {
 				r.mu.Unlock()
-				return ActionResponse{}, fmt.Errorf("%w: 今夜狼人空刀，无人可救，请选择 pass 或 poison", ErrInvalidAction)
+				return ActionResponse{}, NewActionError(ErrInvalidAction, "no_attack_target", "今夜狼人空刀，无人可救，请选择 pass 或 poison")
 			}
 			r.antidoteLeft = false
 			r.witchSaved = true
@@ -672,12 +841,12 @@ func (r *Room) CastNightAction(claims auth.Claims, actionType string, targetSeat
 		case "poison":
 			if !r.poisonLeft {
 				r.mu.Unlock()
-				return ActionResponse{}, fmt.Errorf("%w: 你的毒药已经用完", ErrInvalidAction)
+				return ActionResponse{}, NewActionError(ErrInvalidAction, "no_poison", "你的毒药已经用完，请选择 pass 或 save")
 			}
 			tp := r.findPlayerBySeatLocked(targetSeat)
 			if tp == nil || !tp.Alive || tp.Seat == caller.Seat {
 				r.mu.Unlock()
-				return ActionResponse{}, fmt.Errorf("%w: 请选择一名除自己以外的存活玩家使用毒药", ErrInvalidAction)
+				return ActionResponse{}, NewActionError(ErrInvalidAction, "invalid_target", "请选择一名除自己以外的存活玩家使用毒药")
 			}
 			r.poisonLeft = false
 			r.witchPoisonTarget = tp.Seat
@@ -688,14 +857,14 @@ func (r *Room) CastNightAction(claims auth.Claims, actionType string, targetSeat
 			msg = "本夜女巫选择不使用任何药水。"
 		default:
 			r.mu.Unlock()
-			return ActionResponse{}, fmt.Errorf("%w: 女巫仅支持 actionType=\"save\"、\"poison\" 或 \"pass\"", ErrInvalidAction)
+			return ActionResponse{}, NewActionError(ErrInvalidAction, "invalid_action", "女巫仅支持 actionType=\"save\"、\"poison\" 或 \"pass\"")
 		}
 		r.bumpSeqLocked()
 		notifs = append(notifs, r.advanceNightProgressLocked()...)
 
 	default:
 		r.mu.Unlock()
-		return ActionResponse{}, fmt.Errorf("%w: 你的角色（%s）在夜间无主动技能，请静候天亮", ErrForbiddenRole, RoleLabel(caller.Role))
+		return ActionResponse{}, NewActionError(ErrForbiddenRole, "forbidden_role", fmt.Sprintf("你的角色（%s）在夜间无主动技能，请静候天亮", RoleLabel(caller.Role)))
 	}
 
 	r.storeIdempotencyLocked(claims.UserID, idemKey, "cast_night_action", msg)
@@ -720,13 +889,23 @@ func (r *Room) FinishSpeech(claims auth.Claims, summary string, idemKey string) 
 		return *replay, nil
 	}
 	if r.phase != PhaseDaySpeech {
+		phase := r.phase
 		r.mu.Unlock()
-		return ActionResponse{}, fmt.Errorf("%w: 当前不是白天轮流发言阶段（%s）", ErrWrongPhase, r.phase)
+		return ActionResponse{}, NewActionError(
+			ErrWrongPhase,
+			"phase_expired",
+			fmt.Sprintf("当前不是白天轮流发言阶段（已处于 %s），无需再调用 finish_speech；请查看返回中的最新 view", phase),
+		)
 	}
 	caller := r.findPlayerByUserLocked(claims.UserID)
 	if caller == nil || !caller.Alive || caller.Seat != r.currentSpeakerSeat {
+		curSpeaker := r.currentSpeakerSeat
 		r.mu.Unlock()
-		return ActionResponse{}, fmt.Errorf("%w: 当前麦序为 %d 号玩家，尚未轮到你交麦", ErrForbiddenRole, r.currentSpeakerSeat)
+		return ActionResponse{}, NewActionError(
+			ErrForbiddenRole,
+			"not_your_turn",
+			fmt.Sprintf("当前持麦人为 %d 号玩家，尚未轮到你交麦（或你的麦序已超时切走）", curSpeaker),
+		)
 	}
 
 	note := strings.TrimSpace(summary)
@@ -760,23 +939,24 @@ func (r *Room) SubmitVote(claims auth.Claims, targetSeat int, idemKey string) (A
 		return *replay, nil
 	}
 	if r.phase != PhaseDayVote || r.pendingHunterSeat > 0 {
+		phase := r.phase
 		r.mu.Unlock()
-		return ActionResponse{}, fmt.Errorf("%w: 当前不在放逐投票收票阶段（%s）", ErrWrongPhase, r.phase)
+		return ActionResponse{}, NewActionError(ErrWrongPhase, "wrong_phase", fmt.Sprintf("当前不在放逐投票收票阶段（当前阶段 %s）", phase))
 	}
 	caller := r.findPlayerByUserLocked(claims.UserID)
 	if caller == nil || !caller.Alive {
 		r.mu.Unlock()
-		return ActionResponse{}, fmt.Errorf("%w: 仅存活玩家可参与白天放逐投票", ErrForbiddenRole)
+		return ActionResponse{}, NewActionError(ErrForbiddenRole, "forbidden_role", "仅存活玩家可参与白天放逐投票")
 	}
 	if targetSeat < 0 {
 		r.mu.Unlock()
-		return ActionResponse{}, fmt.Errorf("%w: targetSeat 不能为负数（0 表示弃票）", ErrInvalidAction)
+		return ActionResponse{}, NewActionError(ErrInvalidAction, "invalid_target", "targetSeat 不能为负数（0 表示弃票）")
 	}
 	if targetSeat > 0 {
 		tp := r.findPlayerBySeatLocked(targetSeat)
 		if tp == nil || !tp.Alive {
 			r.mu.Unlock()
-			return ActionResponse{}, fmt.Errorf("%w: 投票目标 %d 号不存在或已出局", ErrInvalidAction, targetSeat)
+			return ActionResponse{}, NewActionError(ErrInvalidAction, "invalid_target", fmt.Sprintf("投票目标 %d 号不存在或已出局", targetSeat))
 		}
 	}
 
@@ -785,9 +965,9 @@ func (r *Room) SubmitVote(claims auth.Claims, targetSeat int, idemKey string) (A
 
 	var msg string
 	if targetSeat == 0 {
-		msg = "已提交暗票：弃票（开票前严格保密）。"
+		msg = "已提交暗票：弃票（全员投完开票前严格保密，开票前仍可重复调用覆盖改票）。"
 	} else {
-		msg = fmt.Sprintf("已提交暗票：投给 %d 号（开票前严格保密）。", targetSeat)
+		msg = fmt.Sprintf("已提交暗票：投给 %d 号（全员投完开票前严格保密，开票前仍可重复调用覆盖改票）。", targetSeat)
 	}
 
 	var notifs []TargetedNotification
@@ -818,22 +998,22 @@ func (r *Room) HunterShoot(claims auth.Claims, targetSeat int, idemKey string) (
 	}
 	if r.pendingHunterSeat <= 0 {
 		r.mu.Unlock()
-		return ActionResponse{}, fmt.Errorf("%w: 当前没有待发动的猎人开枪技能", ErrWrongPhase)
+		return ActionResponse{}, NewActionError(ErrWrongPhase, "wrong_phase", "当前没有待发动的猎人开枪技能")
 	}
 	caller := r.findPlayerByUserLocked(claims.UserID)
 	if caller == nil || caller.Seat != r.pendingHunterSeat || caller.Role != RoleHunter {
 		r.mu.Unlock()
-		return ActionResponse{}, fmt.Errorf("%w: 仅触发技能的猎人本人可执行开枪操作", ErrForbiddenRole)
+		return ActionResponse{}, NewActionError(ErrForbiddenRole, "forbidden_role", "仅触发技能的猎人本人可执行开枪操作")
 	}
 	if targetSeat < 0 {
 		r.mu.Unlock()
-		return ActionResponse{}, fmt.Errorf("%w: targetSeat 不能为负数（0 表示压枪不开枪）", ErrInvalidAction)
+		return ActionResponse{}, NewActionError(ErrInvalidAction, "invalid_target", "targetSeat 不能为负数（0 表示压枪不开枪）")
 	}
 	if targetSeat > 0 {
 		tp := r.findPlayerBySeatLocked(targetSeat)
 		if tp == nil || !tp.Alive || tp.Seat == caller.Seat {
 			r.mu.Unlock()
-			return ActionResponse{}, fmt.Errorf("%w: 请选择一名存活的其他玩家开枪，或传入 0 压枪", ErrInvalidAction)
+			return ActionResponse{}, NewActionError(ErrInvalidAction, "invalid_target", "请选择一名存活的其他玩家开枪，或传入 0 压枪")
 		}
 	}
 
@@ -864,6 +1044,7 @@ func (r *Room) resetToFreshLobbyLocked() {
 	r.wolfChat = nil
 	r.wolfChatSeq = 0
 	r.seerCheckedRound = 0
+	r.seerStepClosed = false
 	r.seerChecks = nil
 	r.antidoteLeft = false
 	r.poisonLeft = false
@@ -877,6 +1058,7 @@ func (r *Room) resetToFreshLobbyLocked() {
 	r.currentSpeakerSeat = 0
 	r.dayVotes = make(map[int]int)
 	r.voteHistory = nil
+	r.postGameLeft = make(map[string]bool)
 	r.publicEvents = nil
 	r.winner = ""
 	r.winReason = ""
@@ -890,6 +1072,7 @@ func (r *Room) enterNightLocked() []TargetedNotification {
 	r.wolfVotes = make(map[int]int)
 	r.lastWolfVoter = 0
 	r.wolfLockedTarget = 0
+	r.seerStepClosed = false
 	r.witchActed = false
 	r.witchSaved = false
 	r.witchPoisonTarget = 0
@@ -900,14 +1083,24 @@ func (r *Room) enterNightLocked() []TargetedNotification {
 	r.dayVotes = make(map[int]int)
 	r.bumpSeqLocked()
 
+	slog.Info("room_enter_night", "convId", r.conversationID, "round", r.round)
+
 	r.scheduleTimerLocked(r.timings.NightTimeout, func() []TargetedNotification {
 		if r.phase != PhaseNight {
 			return nil
 		}
+		r.seerStepClosed = true
 		if r.nightStep == NightStepWolvesAndSeer {
 			r.lockWolfTargetFromVotesLocked()
+			slog.Info("room_night_wolves_timeout",
+				"convId", r.conversationID,
+				"round", r.round,
+				"lockedTarget", r.wolfLockedTarget,
+			)
+			return r.enterWitchStepOrDawnLocked()
 		}
 		r.witchActed = true
+		slog.Info("room_night_seer_timeout", "convId", r.conversationID, "round", r.round)
 		return r.resolveNightToDayAnnounceLocked()
 	})
 
@@ -924,7 +1117,7 @@ func (r *Room) enterNightLocked() []TargetedNotification {
 				"your_turn_night_wolf",
 				p,
 				fmt.Sprintf("第 %d 夜开始！你的身份是【狼人】（存活狼队：%s）。", r.round, strings.Join(wolfNames, "、")),
-				"严禁调用 im_send_message 在公屏发言！可先调用 wolf_chat 与狼队友战术密谋，随后调用 cast_night_action(actionType=\"kill\", targetSeat=...) 提交袭击目标。",
+				"严禁调用 im_send_message 在公屏发言！可先调用 wolf_chat 与狼队友协商刀法，再调用 cast_night_action(actionType=\"kill\", targetSeat=...) 提交袭击目标（全员目标一致即锁刀）。",
 			))
 		case RoleSeer:
 			notifs = append(notifs, r.makeNotificationLocked(
@@ -932,7 +1125,7 @@ func (r *Room) enterNightLocked() []TargetedNotification {
 				"your_turn_night_seer",
 				p,
 				fmt.Sprintf("第 %d 夜开始！你的身份是【预言家】。", r.round),
-				"严禁调用 im_send_message 在公屏发言！请调用 cast_night_action(actionType=\"check\", targetSeat=...) 查验一名存活玩家阵营。",
+				"严禁调用 im_send_message 在公屏发言！请立即调用 cast_night_action(actionType=\"check\", targetSeat=...) 查验一名存活玩家阵营。",
 			))
 		}
 	}
@@ -944,40 +1137,75 @@ func (r *Room) enterNightLocked() []TargetedNotification {
 	return notifs
 }
 
+func (r *Room) enterWitchStepOrDawnLocked() []TargetedNotification {
+	witch := r.findAliveRoleLocked(RoleWitch)
+	if witch != nil && (r.antidoteLeft || r.poisonLeft) {
+		r.nightStep = NightStepWitch
+		r.bumpSeqLocked()
+
+		witchDur := r.timings.WitchTimeout
+		if witchDur <= 0 {
+			witchDur = r.timings.NightTimeout
+		}
+		if !r.phaseDeadline.IsZero() {
+			if rem := time.Until(r.phaseDeadline); rem > witchDur {
+				witchDur = rem
+			}
+		}
+		r.scheduleTimerLocked(witchDur, func() []TargetedNotification {
+			if r.phase != PhaseNight || r.nightStep != NightStepWitch {
+				return nil
+			}
+			r.witchActed = true
+			r.seerStepClosed = true
+			slog.Info("room_night_witch_timeout", "convId", r.conversationID, "round", r.round)
+			return r.resolveNightToDayAnnounceLocked()
+		})
+
+		attackedDesc := "（你的解药已用完，无法获知今夜刀口）"
+		if r.antidoteLeft {
+			if r.wolfLockedTarget > 0 {
+				attackedDesc = fmt.Sprintf("今夜 %d 号玩家遇袭！", r.wolfLockedTarget)
+			} else {
+				attackedDesc = "今夜狼人选择空刀（无人遇袭）。"
+			}
+		}
+		return []TargetedNotification{
+			r.makeNotificationLocked(
+				witch.UserID,
+				"your_turn_night_witch",
+				witch,
+				fmt.Sprintf("第 %d 夜女巫行动阶段：%s（解药剩余=%v，毒药剩余=%v）", r.round, attackedDesc, r.antidoteLeft, r.poisonLeft),
+				"严禁调用 im_send_message 在公屏发言！请立即调用 cast_night_action 选择 save（救人）、poison（毒人）或 pass（不用药）。",
+			),
+		}
+	}
+
+	r.nightStep = NightStepWitch
+	r.witchActed = true
+	seer := r.findAliveRoleLocked(RoleSeer)
+	seerDone := seer == nil || r.seerCheckedRound == r.round || r.seerStepClosed
+	if seerDone {
+		return r.resolveNightToDayAnnounceLocked()
+	}
+	return nil
+}
+
 func (r *Room) advanceNightProgressLocked() []TargetedNotification {
 	if r.phase != PhaseNight {
 		return nil
 	}
 	var notifs []TargetedNotification
 
-	if r.nightStep == NightStepWolvesAndSeer && r.allAliveWolvesVotedLocked() {
+	unanimous, _ := r.aliveWolvesUnanimousLocked()
+	if r.nightStep == NightStepWolvesAndSeer && unanimous {
 		r.lockWolfTargetFromVotesLocked()
-		witch := r.findAliveRoleLocked(RoleWitch)
-		if witch != nil && (r.antidoteLeft || r.poisonLeft) {
-			r.nightStep = NightStepWitch
-			attackedDesc := "（你的解药已用完，无法获知今夜刀口）"
-			if r.antidoteLeft {
-				if r.wolfLockedTarget > 0 {
-					attackedDesc = fmt.Sprintf("今夜 %d 号玩家遇袭！", r.wolfLockedTarget)
-				} else {
-					attackedDesc = "今夜狼人选择空刀（无人遇袭）。"
-				}
-			}
-			notifs = append(notifs, r.makeNotificationLocked(
-				witch.UserID,
-				"your_turn_night_witch",
-				witch,
-				fmt.Sprintf("第 %d 夜女巫行动阶段：%s（解药剩余=%v，毒药剩余=%v）", r.round, attackedDesc, r.antidoteLeft, r.poisonLeft),
-				"严禁调用 im_send_message 在公屏发言！请调用 cast_night_action 选择 save（救人）、poison（毒人）或 pass（不用药）。",
-			))
-		} else {
-			r.nightStep = NightStepWitch
-			r.witchActed = true
-		}
+		notifs = append(notifs, r.enterWitchStepOrDawnLocked()...)
+		return notifs
 	}
 
 	seer := r.findAliveRoleLocked(RoleSeer)
-	seerDone := seer == nil || r.seerCheckedRound == r.round
+	seerDone := seer == nil || r.seerCheckedRound == r.round || r.seerStepClosed
 	if r.nightStep == NightStepWitch && r.witchActed && seerDone {
 		notifs = append(notifs, r.resolveNightToDayAnnounceLocked()...)
 	}
@@ -1126,6 +1354,7 @@ func (r *Room) enterDaySpeechLocked() []TargetedNotification {
 	r.currentSpeakerSeat = order[0]
 	r.bumpSeqLocked()
 	r.appendPublicEventLocked(fmt.Sprintf("进入第 %d 天白天轮流发言阶段，按麦序 %v 依次单人发言，首先请 %d 号发言。", r.round, order, r.currentSpeakerSeat))
+	slog.Info("room_enter_day_speech", "convId", r.conversationID, "round", r.round, "speaker", r.currentSpeakerSeat, "order", order)
 	r.armSpeakerTimerLocked()
 
 	speaker := r.findPlayerBySeatLocked(r.currentSpeakerSeat)
@@ -1142,7 +1371,7 @@ func (r *Room) enterDaySpeechLocked() []TargetedNotification {
 			"your_turn_to_speak",
 			speaker,
 			fmt.Sprintf("第 %d 天白天发言轮到你（%d号 %s）！%s", r.round, speaker.Seat, speaker.DisplayName, dawnBrief),
-			"请先调用一次 im_send_message 在 Teamie 群聊公屏发表你的白天陈词，发言完毕后立即调用 mcp__werewolf__finish_speech 交麦给下一位玩家！",
+			"请立即调用一次 im_send_message 在群聊公屏发表 80～150 字口语化精炼陈词（禁长篇小作文），发完后立刻调用 mcp__werewolf__finish_speech 交麦，谨防超时！",
 		),
 	}
 }
@@ -1153,6 +1382,7 @@ func (r *Room) armSpeakerTimerLocked() {
 		if r.phase != PhaseDaySpeech || r.currentSpeakerSeat != expectedSpeaker {
 			return nil
 		}
+		slog.Warn("room_speaker_timeout", "convId", r.conversationID, "round", r.round, "speaker", expectedSpeaker)
 		r.appendPublicEventLocked(fmt.Sprintf("%d号发言超时，裁判自动切换至下一位麦序。", expectedSpeaker))
 		return r.advanceSpeakerLocked()
 	})
@@ -1179,6 +1409,7 @@ func (r *Room) advanceSpeakerLocked() []TargetedNotification {
 
 	r.currentSpeakerSeat = nextSeat
 	r.bumpSeqLocked()
+	slog.Info("room_next_speaker", "convId", r.conversationID, "round", r.round, "speaker", nextSeat)
 	r.armSpeakerTimerLocked()
 
 	speaker := r.findPlayerBySeatLocked(nextSeat)
@@ -1191,7 +1422,7 @@ func (r *Room) advanceSpeakerLocked() []TargetedNotification {
 			"your_turn_to_speak",
 			speaker,
 			fmt.Sprintf("第 %d 天白天发言现在轮到你（%d号 %s）！前序玩家已交麦。", r.round, speaker.Seat, speaker.DisplayName),
-			"请先调用一次 im_send_message 在 Teamie 群聊公屏发表你的白天陈词，发言完毕后立即调用 mcp__werewolf__finish_speech 交麦给下一位玩家！",
+			"请立即调用一次 im_send_message 在群聊公屏发表 80～150 字口语化精炼陈词（禁长篇小作文），发完后立刻调用 mcp__werewolf__finish_speech 交麦，谨防超时！",
 		),
 	}
 }
@@ -1203,11 +1434,13 @@ func (r *Room) enterDayVoteLocked() []TargetedNotification {
 	r.dayVotes = make(map[int]int)
 	r.bumpSeqLocked()
 	r.appendPublicEventLocked(fmt.Sprintf("第 %d 天全员发言完毕，进入白天暗票放逐投票阶段！", r.round))
+	slog.Info("room_enter_day_vote", "convId", r.conversationID, "round", r.round)
 
 	r.scheduleTimerLocked(r.timings.VoteTimeout, func() []TargetedNotification {
 		if r.phase != PhaseDayVote || r.pendingHunterSeat > 0 {
 			return nil
 		}
+		slog.Warn("room_vote_timeout", "convId", r.conversationID, "round", r.round)
 		for _, p := range r.players {
 			if p.Alive {
 				if _, voted := r.dayVotes[p.Seat]; !voted {
@@ -1227,8 +1460,8 @@ func (r *Room) enterDayVoteLocked() []TargetedNotification {
 			p.UserID,
 			"your_turn_to_vote",
 			p,
-			fmt.Sprintf("第 %d 天进入暗票放逐投票阶段，请投出你的选票（开票前严格保密）。", r.round),
-			"请静默调用 mcp__werewolf__submit_vote(targetSeat=1..N 或 0 弃票)，投票期间请勿调用 im_send_message 刷屏。",
+			fmt.Sprintf("第 %d 天进入暗票放逐投票阶段，请投出你的选票（全员投完开票前严格保密）。", r.round),
+			"请静默调用 mcp__werewolf__submit_vote(targetSeat=1..N 或 0 弃票)；全员落票前可重复调用改票，投票期间严禁调用 im_send_message 在公屏发言。",
 		))
 	}
 	return notifs
@@ -1394,6 +1627,7 @@ func (r *Room) enterGameOverLocked(winner Alignment, reason string) []TargetedNo
 	r.winReason = reason
 	r.bumpSeqLocked()
 	r.appendPublicEventLocked("对局结束！" + reason + " 全员底牌现已揭晓。")
+	slog.Info("room_game_over", "convId", r.conversationID, "round", r.round, "winner", winner, "reason", reason)
 
 	var notifs []TargetedNotification
 	for _, p := range r.players {
@@ -1402,7 +1636,7 @@ func (r *Room) enterGameOverLocked(winner Alignment, reason string) []TargetedNo
 			"game_over",
 			p,
 			fmt.Sprintf("对局结束：%s", reason),
-			"本局已完结，可在群聊自由复盘，或调用 join_lobby 开启新一局。",
+			"本局已完结。除非人类玩家主动提问，否则请勿自动发送长篇复盘；若不再继续下一局可调用 leave_lobby 散场离席，或调用 join_lobby 开启新局。",
 		))
 	}
 	return notifs
@@ -1439,13 +1673,13 @@ func (r *Room) computePolicyForLocked(caller *playerState) PublicChatPolicy {
 			return PublicChatPolicy{
 				Allowed:           true,
 				ActiveSpeakerSeat: r.currentSpeakerSeat,
-				Reason:            fmt.Sprintf("现在轮到你（%d号）发言！请先在群聊公屏发言一次（Agent 调用 im_send_message），随后立即调用 finish_speech 交麦。", r.currentSpeakerSeat),
+				Reason:            fmt.Sprintf("现在轮到你（%d号）发言！请在群聊公屏发表一次 80～150 字口语化简短发言，发完立即调用 finish_speech 交麦。", r.currentSpeakerSeat),
 			}
 		}
 		return PublicChatPolicy{
 			Allowed:           false,
 			ActiveSpeakerSeat: r.currentSpeakerSeat,
-			Reason:            fmt.Sprintf("当前严格执行单人麦序，正在由 %d 号玩家发言，请保持安静切勿插话抢麦！", r.currentSpeakerSeat),
+			Reason:            fmt.Sprintf("当前严格执行单人麦序，正在由 %d 号玩家发言，即使被提及也严禁插话抢麦！", r.currentSpeakerSeat),
 		}
 	case PhaseDayVote:
 		if r.pendingHunterSeat > 0 && caller != nil && caller.Seat == r.pendingHunterSeat {
@@ -1457,12 +1691,12 @@ func (r *Room) computePolicyForLocked(caller *playerState) PublicChatPolicy {
 		}
 		return PublicChatPolicy{
 			Allowed: false,
-			Reason:  "当前处于白天暗票放逐投票阶段，请静默调用 submit_vote 投出暗票，禁止公屏拉票刷屏。",
+			Reason:  "当前处于白天暗票放逐投票阶段，请静默调用 submit_vote 投出暗票（开票前可重复调用改票），严禁公屏发言。",
 		}
 	case PhaseGameOver:
 		return PublicChatPolicy{
 			Allowed: true,
-			Reason:  "对局已结束，全员底牌已公开，可在群聊自由复盘总结。",
+			Reason:  "对局已结束，全员底牌已公开（请简短交流，切勿刷屏长篇复盘；不再继续可调用 leave_lobby 散场）。",
 		}
 	default:
 		return PublicChatPolicy{Allowed: false, Reason: "请遵循裁判台阶段指引。"}
@@ -1484,7 +1718,10 @@ func (r *Room) computePendingActionLocked(caller *playerState) (string, string) 
 	}
 
 	if r.phase == PhaseGameOver {
-		return "join_lobby", "本局已结束，点击【再来一局】或调用 join_lobby 可重置新大厅。"
+		if caller != nil && r.postGameLeft[caller.UserID] {
+			return "", "你已离席散场；如需开启新一局可点击【再来一局】或调用 join_lobby。"
+		}
+		return "join_lobby", "本局已结束，可调用 leave_lobby 离席散场，或调用 join_lobby 开启新一局。"
 	}
 
 	if caller == nil {
@@ -1507,11 +1744,14 @@ func (r *Room) computePendingActionLocked(caller *playerState) (string, string) 
 				if _, voted := r.wolfVotes[caller.Seat]; !voted {
 					return "cast_night_action", "天黑行动：可在狼人暗频交流战术，并选择一名袭击目标（或空刀）。"
 				}
-				return "wait_night", "你已提交袭击目标，正在等待狼队友或其他夜间神职完成行动。"
+				if unanimous, _ := r.aliveWolvesUnanimousLocked(); !unanimous && r.allAliveWolvesVotedLocked() {
+					return "cast_night_action", "狼队当前票型存在分歧（尚未锁刀），请用 wolf_chat 协商或调用 cast_night_action 统一袭击目标。"
+				}
+				return "wait_night", "你已提交袭击意向（全员一致锁刀前仍可改选），正在等待狼队友完成确认。"
 			}
-			return "wait_night", "狼队目标已锁定，等待天亮。"
+			return "wait_night", "狼队目标已锁定，等待神职行动与天亮。"
 		case RoleSeer:
-			if r.seerCheckedRound != r.round {
+			if r.seerCheckedRound != r.round && !r.seerStepClosed {
 				return "cast_night_action", "天黑查验：请选择一名存活玩家查验其阵营（好人/狼人）。"
 			}
 			return "wait_night", "你已完成今夜查验，请静候天亮。"
@@ -1527,14 +1767,14 @@ func (r *Room) computePendingActionLocked(caller *playerState) (string, string) 
 		return "wait_day_speech", "正在公布昨夜情况，即将进入白天轮流发言。"
 	case PhaseDaySpeech:
 		if caller.Seat == r.currentSpeakerSeat {
-			return "finish_speech", "轮到你发言！请先在左侧群聊公屏发送发言消息，随后点击【结束本轮发言】或调用 finish_speech 交麦。"
+			return "finish_speech", "轮到你发言！请先在群聊公屏发送 80～150 字简短发言，随后立即点击【结束本轮发言】或调用 finish_speech 交麦。"
 		}
 		return "wait_speaker", fmt.Sprintf("请耐心等待 %d 号玩家发言完毕交麦。", r.currentSpeakerSeat)
 	case PhaseDayVote:
 		if _, voted := r.dayVotes[caller.Seat]; !voted {
-			return "submit_vote", "请选择放逐投票目标或弃票（开票前严格保密）。"
+			return "submit_vote", "请选择放逐投票目标或弃票（全员投完开票前严格保密，可改票）。"
 		}
-		return "wait_votes", "你已投出暗票，等待其余存活玩家完成投票后统一开票。"
+		return "wait_votes", "你已投出暗票（全员投完前仍可重新选择改票），等待其余存活玩家完成投票后统一开票。"
 	}
 	return "", ""
 }
@@ -1569,10 +1809,15 @@ func (r *Room) buildViewLocked(claims auth.Claims) PlayerView {
 		})
 	}
 
+	isSeated := caller != nil
+	if r.phase == PhaseGameOver && r.postGameLeft[claims.UserID] {
+		isSeated = false
+	}
+
 	me := MeView{
 		UserID:        claims.UserID,
 		DisplayName:   claims.DisplayName,
-		Seated:        caller != nil,
+		Seated:        isSeated,
 		PendingAction: pendingAction,
 		ActionHint:    actionHint,
 	}
@@ -1600,6 +1845,7 @@ func (r *Room) buildViewLocked(claims auth.Claims) PlayerView {
 				}
 			}
 			p.WolfTeammateSeats = teammates
+			p.WolfCanVote = caller.Alive && r.phase == PhaseNight && r.nightStep == NightStepWolvesAndSeer
 			if len(r.wolfChat) > 0 {
 				chatCopy := make([]WolfChatEntry, len(r.wolfChat))
 				copy(chatCopy, r.wolfChat)
@@ -1855,6 +2101,51 @@ func (r *Room) allAliveWolvesVotedLocked() bool {
 		}
 	}
 	return true
+}
+
+// aliveWolvesUnanimousLocked returns true only when every alive werewolf has submitted a vote
+// AND all alive werewolves selected the exact same targetSeat (including unanimous 0 = empty knife).
+func (r *Room) aliveWolvesUnanimousLocked() (bool, int) {
+	first := true
+	agreed := 0
+	aliveCount := 0
+	for _, p := range r.players {
+		if !p.Alive || p.Role != RoleWerewolf {
+			continue
+		}
+		aliveCount++
+		v, ok := r.wolfVotes[p.Seat]
+		if !ok {
+			return false, 0
+		}
+		if first {
+			agreed = v
+			first = false
+		} else if v != agreed {
+			return false, 0
+		}
+	}
+	if aliveCount == 0 {
+		return true, 0
+	}
+	return true, agreed
+}
+
+func (r *Room) wolfVotesSummaryLocked() string {
+	var parts []string
+	for _, p := range r.players {
+		if !p.Alive || p.Role != RoleWerewolf {
+			continue
+		}
+		if v, ok := r.wolfVotes[p.Seat]; ok {
+			if v == 0 {
+				parts = append(parts, fmt.Sprintf("%d号→空刀", p.Seat))
+			} else {
+				parts = append(parts, fmt.Sprintf("%d号→%d号", p.Seat, v))
+			}
+		}
+	}
+	return strings.Join(parts, "，")
 }
 
 func (r *Room) allAliveVotedLocked() bool {

@@ -393,3 +393,125 @@ func TestPhaseTimeoutAutoAdvance(t *testing.T) {
 		t.Fatalf("expected auto-advance through DAY_SPEECH and DAY_VOTE into Round 2 NIGHT, got phase=%s round=%d", v.Phase, v.Round)
 	}
 }
+
+func TestWolfDisagreementRevisionWitchSubTimerAndPostGameLeave(t *testing.T) {
+	mgr := NewManager(Timings{
+		NightTimeout:       80 * time.Millisecond,
+		WitchTimeout:       450 * time.Millisecond,
+		DayAnnounceDelay:   0,
+		HunterTimeout:      200 * time.Millisecond,
+		SpeakerTurnTimeout: 200 * time.Millisecond,
+		VoteTimeout:        200 * time.Millisecond,
+	})
+	defer mgr.CloseAll()
+
+	// Seat 1,2: WEREWOLF; Seat 3,4: VILLAGER; Seat 5: SEER; Seat 6: WITCH
+	mgr.SetShuffleFunc(func(deck []Role) {
+		copy(deck, []Role{RoleWerewolf, RoleWerewolf, RoleVillager, RoleVillager, RoleSeer, RoleWitch})
+	})
+
+	room := mgr.GetOrCreateRoom("ws-bugs", "conv-bugs")
+	p := make([]auth.Claims, 6)
+	for i := 0; i < 6; i++ {
+		p[i] = makeTestClaims(i + 1)
+		_, _ = room.JoinLobby(p[i], "6p", "")
+	}
+	if _, err := room.StartGame(p[0], "6p", 0, ""); err != nil {
+		t.Fatalf("StartGame failed: %v", err)
+	}
+
+	// Seer checks Seat 1
+	_, _ = room.CastNightAction(p[4], "check", 1, "")
+
+	// Wolf 1 votes Seat 3, Wolf 2 votes Seat 4 (disagreement!)
+	if _, err := room.CastNightAction(p[0], "kill", 3, ""); err != nil {
+		t.Fatalf("Wolf 1 vote failed: %v", err)
+	}
+	rDisagree, err := room.CastNightAction(p[1], "kill", 4, "")
+	if err != nil {
+		t.Fatalf("Wolf 2 disagreeing vote failed: %v", err)
+	}
+	if !strings.Contains(rDisagree.Message, "分歧") {
+		t.Fatalf("expected disagreement hint in message, got %q", rDisagree.Message)
+	}
+
+	// Because wolves disagreed, nightStep MUST still be WOLVES_AND_SEER (WolfCanVote=true, Witch CanActNow=false)
+	w1View := room.GetView(p[0])
+	if w1View.Private == nil || !w1View.Private.WolfCanVote {
+		t.Fatalf("expected Wolf 1 WolfCanVote=true when wolves disagree, got %+v", w1View.Private)
+	}
+	witchEarly := room.GetView(p[5])
+	if witchEarly.Private == nil || witchEarly.Private.WitchState == nil || witchEarly.Private.WitchState.CanActNow {
+		t.Fatalf("expected Witch NOT active before wolves agree, got %+v", witchEarly.Private)
+	}
+
+	// Wait 55ms (most of the 80ms NightTimeout), then Wolf 1 revises vote to Seat 4 -> unanimous lock!
+	time.Sleep(55 * time.Millisecond)
+	rAgree, err := room.CastNightAction(p[0], "kill", 4, "")
+	if err != nil {
+		t.Fatalf("Wolf 1 vote revision failed: %v", err)
+	}
+	if !strings.Contains(rAgree.Message, "锁定") {
+		t.Fatalf("expected lock confirmation on unanimous wolf vote, got %q", rAgree.Message)
+	}
+	// Further wolf revision after unanimous lock must fail with wolf_target_locked
+	if _, lockErr := room.CastNightAction(p[1], "kill", 3, ""); ErrorCodeOf(lockErr) != "wolf_target_locked" {
+		t.Fatalf("expected wolf_target_locked after consensus, got err=%v code=%s", lockErr, ErrorCodeOf(lockErr))
+	}
+
+	// Sleep another 70ms (total 125ms > original 80ms NightTimeout!):
+	// Witch MUST STILL be in NIGHT with CanActNow=true thanks to dedicated 450ms WitchTimeout!
+	time.Sleep(70 * time.Millisecond)
+	witchActive := room.GetView(p[5])
+	if witchActive.Phase != PhaseNight || !witchActive.Private.WitchState.CanActNow {
+		t.Fatalf("Witch was starved by shared timer! phase=%s witchState=%+v", witchActive.Phase, witchActive.Private)
+	}
+
+	// Witch poisons Wolf 1 (Seat 1) -> Night 1 casualties: Seat 4 (Villager) + Seat 1 (Wolf) -> DAY_SPEECH
+	if _, err := room.CastNightAction(p[5], "poison", 1, ""); err != nil {
+		t.Fatalf("Witch poison failed: %v", err)
+	}
+	// Alive seats in DAY_SPEECH: 2, 3, 5, 6 -> finish speeches and vote out Wolf 2 (Seat 2) -> GAME_OVER!
+	for step := 0; step < 4; step++ {
+		cur := room.GetView(p[1]).Speech.CurrentSpeakerSeat
+		if _, err := room.FinishSpeech(p[cur-1], "简短陈词", ""); err != nil {
+			t.Fatalf("FinishSpeech seat %d failed: %v", cur, err)
+		}
+	}
+	for _, voterIdx := range []int{1, 2, 4, 5} {
+		target := 2
+		if voterIdx == 1 {
+			target = 5
+		}
+		_, _ = room.SubmitVote(p[voterIdx], target, "")
+	}
+	if got := room.GetView(p[0]).Phase; got != PhaseGameOver {
+		t.Fatalf("expected GAME_OVER after exiling Wolf 2, got %s", got)
+	}
+
+	// LeaveLobby in GAME_OVER: Players 1, 2, 3 leave -> Seated=false for them, but Player 4 still sees GAME_OVER scoreboard!
+	for _, idx := range []int{0, 1, 2} {
+		lr, lErr := room.LeaveLobby(p[idx], "")
+		if lErr != nil {
+			t.Fatalf("LeaveLobby in GAME_OVER failed for player %d: %v", idx+1, lErr)
+		}
+		if lr.View.Me.Seated {
+			t.Fatalf("expected player %d Seated=false after LeaveLobby in GAME_OVER", idx+1)
+		}
+	}
+	p4View := room.GetView(p[3])
+	if p4View.Phase != PhaseGameOver || p4View.Seats[0].KnownRole != RoleWerewolf {
+		t.Fatalf("expected GAME_OVER recap preserved while others remain, got phase=%s", p4View.Phase)
+	}
+
+	// Remaining players 4, 5, 6 leave -> room resets to clean 0/6 LOBBY
+	for _, idx := range []int{3, 4, 5} {
+		if _, lErr := room.LeaveLobby(p[idx], ""); lErr != nil {
+			t.Fatalf("LeaveLobby in GAME_OVER failed for player %d: %v", idx+1, lErr)
+		}
+	}
+	cleanView := room.GetView(p[0])
+	if cleanView.Phase != PhaseLobby || len(cleanView.Seats) != 0 {
+		t.Fatalf("expected clean 0/6 LOBBY after all players left GAME_OVER, got phase=%s seats=%d", cleanView.Phase, len(cleanView.Seats))
+	}
+}

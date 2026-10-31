@@ -127,13 +127,14 @@ type MeView struct {
 
 // PrivateView holds role-specific secret state, strictly nil/omitted for unauthorized roles.
 type PrivateView struct {
-	WolfTeammateSeats []int             `json:"wolfTeammateSeats,omitempty"`
-	WolfIntentions    map[int]int       `json:"wolfIntentions,omitempty"`
-	WolfChat          []WolfChatEntry   `json:"wolfChat,omitempty"`
-	SeerChecks        []SeerCheckRecord `json:"seerChecks,omitempty"`
+	WolfTeammateSeats []int              `json:"wolfTeammateSeats,omitempty"`
+	WolfIntentions    map[int]int        `json:"wolfIntentions,omitempty"`
+	WolfCanVote       bool               `json:"wolfCanVote,omitempty"`
+	WolfChat          []WolfChatEntry    `json:"wolfChat,omitempty"`
+	SeerChecks        []SeerCheckRecord  `json:"seerChecks,omitempty"`
 	WitchState        *WitchPrivateState `json:"witchState,omitempty"`
-	MySubmittedVote   *int              `json:"mySubmittedVote,omitempty"`
-	HunterCanShoot    bool              `json:"hunterCanShoot,omitempty"`
+	MySubmittedVote   *int               `json:"mySubmittedVote,omitempty"`
+	HunterCanShoot    bool               `json:"hunterCanShoot,omitempty"`
 }
 
 // SpeechProgressView tracks strict single-speaker turn order during DAY_SPEECH.
@@ -169,6 +170,7 @@ type PlayerView struct {
 type ActionResponse struct {
 	OK               bool             `json:"ok"`
 	Action           string           `json:"action"`
+	ErrorCode        string           `json:"errorCode,omitempty"`
 	Message          string           `json:"message"`
 	IdempotentReplay bool             `json:"idempotentReplay,omitempty"`
 	PublicChatPolicy PublicChatPolicy `json:"publicChatPolicy"`
@@ -200,6 +202,7 @@ type TargetedNotification struct {
 // Timings configures auto-advance timeouts for a room.
 type Timings struct {
 	NightTimeout       time.Duration
+	WitchTimeout       time.Duration
 	DayAnnounceDelay   time.Duration
 	HunterTimeout      time.Duration
 	SpeakerTurnTimeout time.Duration
@@ -210,10 +213,11 @@ type Timings struct {
 func DefaultTimings() Timings {
 	return Timings{
 		NightTimeout:       90 * time.Second,
+		WitchTimeout:       60 * time.Second,
 		DayAnnounceDelay:   2500 * time.Millisecond,
-		HunterTimeout:      45 * time.Second,
-		SpeakerTurnTimeout: 90 * time.Second,
-		VoteTimeout:        60 * time.Second,
+		HunterTimeout:      60 * time.Second,
+		SpeakerTurnTimeout: 120 * time.Second,
+		VoteTimeout:        75 * time.Second,
 	}
 }
 

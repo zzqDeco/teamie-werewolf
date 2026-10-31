@@ -403,10 +403,10 @@ export function App() {
                 )}
               </div>
 
-              {me.alive && me.pendingAction === "cast_night_action" && (
+              {me.alive && (me.pendingAction === "cast_night_action" || Boolean(priv?.wolfCanVote)) && (
                 <div>
                   <div style={{ fontSize: "11.5px", fontWeight: 600 }}>
-                    选择今夜袭击目标
+                    选择今夜袭击目标（狼队达成一致前可改选）
                     {priv?.wolfIntentions && Object.keys(priv.wolfIntentions).length > 0 && (
                       <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>
                         {" "}
@@ -419,26 +419,38 @@ export function App() {
                     )}
                   </div>
                   <div className="ww-target-grid">
-                    {aliveSeats.map((s) => (
-                      <button
-                        key={s.seat}
-                        type="button"
-                        disabled={busy}
-                        className="ww-btn ww-btn-danger"
-                        onClick={() =>
-                          void runAction("cast_night_action", {
-                            actionType: "kill",
-                            targetSeat: s.seat,
-                          })
-                        }
-                      >
-                        刀 {s.seat}号
-                      </button>
-                    ))}
+                    {aliveSeats.map((s) => {
+                      const myWolfPick =
+                        me.seat !== undefined
+                          ? priv?.wolfIntentions?.[String(me.seat)]
+                          : undefined;
+                      return (
+                        <button
+                          key={s.seat}
+                          type="button"
+                          disabled={busy}
+                          className={`ww-btn ww-btn-danger ${
+                            myWolfPick === s.seat ? "ww-btn-selected" : ""
+                          }`}
+                          onClick={() =>
+                            void runAction("cast_night_action", {
+                              actionType: "kill",
+                              targetSeat: s.seat,
+                            })
+                          }
+                        >
+                          刀 {s.seat}号
+                        </button>
+                      );
+                    })}
                     <button
                       type="button"
                       disabled={busy}
-                      className="ww-btn"
+                      className={`ww-btn ${
+                        me.seat !== undefined && priv?.wolfIntentions?.[String(me.seat)] === 0
+                          ? "ww-btn-selected"
+                          : ""
+                      }`}
                       onClick={() =>
                         void runAction("cast_night_action", {
                           actionType: "pass",
@@ -745,14 +757,27 @@ export function App() {
             </span>
           </div>
           <div style={{ fontSize: "12px", marginBottom: "8px" }}>{view.winReason}</div>
-          <button
-            type="button"
-            disabled={busy}
-            className="ww-btn ww-btn-primary ww-btn-full"
-            onClick={() => void runAction("join_lobby", { preset })}
-          >
-            🔄 再来一局（重置大厅并入座）
-          </button>
+          <div className="ww-btn-row">
+            {me.seated && (
+              <button
+                type="button"
+                disabled={busy}
+                className="ww-btn"
+                onClick={() => void runAction("leave_lobby")}
+              >
+                离开牌桌
+              </button>
+            )}
+            <button
+              type="button"
+              disabled={busy}
+              className="ww-btn ww-btn-primary"
+              style={{ flex: 1 }}
+              onClick={() => void runAction("join_lobby", { preset })}
+            >
+              🔄 再来一局
+            </button>
+          </div>
         </section>
       )}
 

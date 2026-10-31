@@ -97,6 +97,7 @@ export interface MeView {
 export interface PrivateView {
   wolfTeammateSeats?: number[];
   wolfIntentions?: Record<string, number>;
+  wolfCanVote?: boolean;
   wolfChat?: WolfChatEntry[];
   seerChecks?: SeerCheckRecord[];
   witchState?: WitchPrivateState;
@@ -134,6 +135,7 @@ export interface PlayerView {
 export interface ActionResponse {
   ok: boolean;
   action: string;
+  errorCode?: string;
   message: string;
   idempotentReplay?: boolean;
   publicChatPolicy: PublicChatPolicy;
