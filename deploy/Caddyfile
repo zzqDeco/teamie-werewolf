@@ -5,7 +5,6 @@
 
 https://:9443 {
 	tls /etc/caddy/tls/fullchain.pem /etc/caddy/tls/privkey.pem
-	encode zstd gzip
 
 	header {
 		X-Content-Type-Options nosniff
@@ -27,6 +26,7 @@ https://:9443 {
 	}
 
 	handle {
+		encode zstd gzip
 		reverse_proxy werewolf:8080
 	}
 }
