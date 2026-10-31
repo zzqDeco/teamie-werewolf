@@ -470,3 +470,112 @@ func TestMCPContinuousSSEFogOfWarAndIdempotency(t *testing.T) {
 		}
 	}
 }
+
+func TestMCPBusinessRejectionsReturnStructuredJSONWithoutIsError(t *testing.T) {
+	srv, mgr, cleanup := setupMCPTestServer(t)
+	t.Cleanup(cleanup)
+
+	mgr.SetShuffleFunc(func(deck []game.Role) {
+		copy(deck, []game.Role{
+			game.RoleWerewolf,
+			game.RoleWerewolf,
+			game.RoleVillager,
+			game.RoleVillager,
+			game.RoleSeer,
+			game.RoleWitch,
+		})
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	makeClient := func(i int) *client.Client {
+		t.Helper()
+		uid := "00000000-0000-4000-8000-00000000030" + string(rune('1'+i))
+		tok := mintToken(t, testSecret, uid, "Bot-"+string(rune('1'+i)), 30*time.Minute)
+		tr, err := transport.NewStreamableHTTP(
+			srv.URL+"/mcp",
+			transport.WithHTTPBasicClient(&http.Client{Transport: &bearerRoundTripper{token: tok}}),
+		)
+		if err != nil {
+			t.Fatalf("NewStreamableHTTP: %v", err)
+		}
+		c := client.NewClient(tr)
+		if err := c.Start(ctx); err != nil {
+			t.Fatalf("Start: %v", err)
+		}
+		if _, err := c.Initialize(ctx, mcp.InitializeRequest{
+			Params: mcp.InitializeParams{
+				ProtocolVersion: mcp.LATEST_PROTOCOL_VERSION,
+				ClientInfo:      mcp.Implementation{Name: "test-bot", Version: "1.0.0"},
+			},
+		}); err != nil {
+			t.Fatalf("Initialize: %v", err)
+		}
+		t.Cleanup(func() { _ = c.Close() })
+		return c
+	}
+
+	bots := make([]*client.Client, 6)
+	for i := 0; i < 6; i++ {
+		bots[i] = makeClient(i)
+		res, err := bots[i].CallTool(ctx, mcp.CallToolRequest{
+			Params: mcp.CallToolParams{Name: "join_lobby"},
+		})
+		if err != nil || res.IsError {
+			t.Fatalf("join_lobby %d failed: %v %+v", i+1, err, res)
+		}
+	}
+
+	// Bot 1 starts game -> NIGHT
+	if res, err := bots[0].CallTool(ctx, mcp.CallToolRequest{
+		Params: mcp.CallToolParams{Name: "start_game"},
+	}); err != nil || res.IsError {
+		t.Fatalf("start_game failed: %v %+v", err, res)
+	}
+
+	assertStructuredRejection := func(cli *client.Client, tool string, args map[string]any, wantCode string) game.ActionResponse {
+		t.Helper()
+		res, err := cli.CallTool(ctx, mcp.CallToolRequest{
+			Params: mcp.CallToolParams{Name: tool, Arguments: args},
+		})
+		if err != nil {
+			t.Fatalf("%s returned transport err: %v", tool, err)
+		}
+		if res.IsError {
+			t.Fatalf("%s set IsError=true (would be stripped into opaque mcp_tool_error by einomcp!): %+v", tool, res)
+		}
+		var ar game.ActionResponse
+		txt := res.Content[0].(mcp.TextContent).Text
+		if err := json.Unmarshal([]byte(txt), &ar); err != nil {
+			t.Fatalf("%s invalid ActionResponse JSON: %v (%s)", tool, err, txt)
+		}
+		if ar.OK {
+			t.Fatalf("%s expected ok=false, got ok=true: %+v", tool, ar)
+		}
+		if ar.ErrorCode != wantCode {
+			t.Fatalf("%s expected errorCode=%q, got %q (msg=%q)", tool, wantCode, ar.ErrorCode, ar.Message)
+		}
+		return ar
+	}
+
+	// 1. Duplicate start_game by Bot 2 right after game started -> game_already_started + cropped Villager/Wolf view
+	dupStart := assertStructuredRejection(bots[2], "start_game", nil, "game_already_started")
+	if dupStart.View.Phase != game.PhaseNight || dupStart.View.Me.Role != game.RoleVillager {
+		t.Fatalf("expected Villager NIGHT view on rejected start_game, got %+v", dupStart.View)
+	}
+	// Ensure no Fog-of-War leak inside error response view!
+	rawDup, _ := json.Marshal(dupStart)
+	if strings.Contains(string(rawDup), "WEREWOLF") || strings.Contains(string(rawDup), "wolfTeammateSeats") {
+		t.Fatalf("CRITICAL FOG LEAK in rejected ActionResponse: %s", string(rawDup))
+	}
+
+	// 2. leave_lobby during NIGHT -> game_in_progress
+	assertStructuredRejection(bots[2], "leave_lobby", nil, "game_in_progress")
+
+	// 3. Villager calling cast_night_action -> forbidden_role
+	assertStructuredRejection(bots[2], "cast_night_action", map[string]any{"actionType": "check", "targetSeat": 1}, "forbidden_role")
+
+	// 4. Missing targetSeat on submit_vote -> missing_target_seat
+	assertStructuredRejection(bots[2], "submit_vote", map[string]any{}, "missing_target_seat")
+}

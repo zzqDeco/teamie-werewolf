@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 	"sync"
@@ -26,6 +27,8 @@ const (
 	NotificationMethod = "notifications/werewolf_event"
 	// MaxNotificationBytes enforces the < 2 KB Fog-of-War notification budget.
 	MaxNotificationBytes = 2048
+	// sessionIdleTTL bounds sessionRegistry memory when clients disconnect without sending DELETE /mcp.
+	sessionIdleTTL = 2 * time.Hour
 )
 
 type ctxClaimsKey struct{}
@@ -37,6 +40,7 @@ type sessionMeta struct {
 	ConversationID string
 	UserID         string
 	CreatedAt      time.Time
+	LastSeenAt     time.Time
 }
 
 type sessionRegistry struct {
@@ -59,13 +63,15 @@ func newSessionRegistry() *sessionRegistry {
 }
 
 func (r *sessionRegistry) register(claims auth.Claims) string {
+	now := time.Now().UTC()
 	sid := "ww-mcp-" + uuid.NewString()
 	meta := sessionMeta{
 		SessionID:      sid,
 		WorkspaceID:    claims.WorkspaceID,
 		ConversationID: claims.ConversationID,
 		UserID:         claims.UserID,
-		CreatedAt:      time.Now().UTC(),
+		CreatedAt:      now,
+		LastSeenAt:     now,
 	}
 	pk := playerKey{
 		WorkspaceID:    claims.WorkspaceID,
@@ -85,11 +91,48 @@ func (r *sessionRegistry) register(claims auth.Claims) string {
 	return sid
 }
 
+func (r *sessionRegistry) getAndTouch(sid string) (sessionMeta, bool) {
+	now := time.Now().UTC()
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	meta, ok := r.byID[sid]
+	if !ok {
+		return sessionMeta{}, false
+	}
+	meta.LastSeenAt = now
+	r.byID[sid] = meta
+	return meta, true
+}
+
 func (r *sessionRegistry) get(sid string) (sessionMeta, bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	meta, ok := r.byID[sid]
 	return meta, ok
+}
+
+func (r *sessionRegistry) sweepExpired(cutoff time.Time) []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	var evicted []string
+	for sid, meta := range r.byID {
+		if meta.LastSeenAt.Before(cutoff) {
+			evicted = append(evicted, sid)
+			delete(r.byID, sid)
+			pk := playerKey{
+				WorkspaceID:    meta.WorkspaceID,
+				ConversationID: meta.ConversationID,
+				UserID:         meta.UserID,
+			}
+			if set, exists := r.byPlayer[pk]; exists {
+				delete(set, sid)
+				if len(set) == 0 {
+					delete(r.byPlayer, pk)
+				}
+			}
+		}
+	}
+	return evicted
 }
 
 func (r *sessionRegistry) delete(sid string) {
@@ -198,7 +241,7 @@ func NewHandler(version string, verifier *auth.Verifier, gameMgr *game.Manager) 
 	if strings.TrimSpace(version) == "" {
 		version = "0.1.0"
 	}
-	instructions := "狼人杀裁判台（Werewolf）：支持 6p/9p 人机同局博弈。重要纪律：1) 严格遵守每次工具返回或通知中的 publicChatPolicy；NIGHT 夜间严禁调用 im_send_message 在公屏梦游发言（狼人请用 wolf_chat 暗聊）；2) DAY_SPEECH 白天仅在轮到你持麦（activeSpeakerSeat == 你的座位）时在群聊发言一次，发言完毕后必须立即调用 finish_speech 交麦；3) 一切身份与房间均由平台 Context Token 自动绑定，无需也不可伪造 userId/conversationId。"
+	instructions := "狼人杀裁判台（Werewolf）：支持 6p/9p 人机同局博弈。重要纪律：1) 严格遵守每次工具返回与通知中的 publicChatPolicy：凡 publicChatPolicy.allowed == false（含 NIGHT、DAY_ANNOUNCE、DAY_VOTE 及非本人持麦的 DAY_SPEECH），严禁调用 im_send_message 在公屏发言（即使在群聊被 @ 提及也请保持沉默，等自己麦序再回应；夜间狼人仅用 wolf_chat 暗聊）；2) 短平快发言铁律：DAY_SPEECH 轮到你持麦（activeSpeakerSeat == 你的座位）时，先调用一次 im_send_message 发表 80～150 字口语化精炼发言（直接亮明视角/查验与归票，禁止写几百字长篇分点报告），发完后必须立即调用 finish_speech 交麦，避免思考过久超时；3) 投票与散场：DAY_VOTE 全员投完前可重复调用 submit_vote 覆盖改票；GAME_OVER 除非人类玩家提问，否则请勿自动刷长篇复盘，不再继续时调用 leave_lobby 散场离席；4) 工具返回的业务状态通过 JSON 中 ok、errorCode、message 与 view 呈现，若 ok == false 请直接依据 errorCode 和 view 判断，切勿盲猜。"
 
 	mcpSrv := server.NewMCPServer(
 		ServerName,
@@ -262,6 +305,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	claims, err := h.verifier.VerifyAuthorizationHeader(r.Header.Get("Authorization"))
 	if err != nil {
+		slog.Warn("mcp_http_unauthorized", "method", r.Method, "reason", err.Error())
 		writeJSONStatus(w, http.StatusUnauthorized, map[string]string{
 			"error":   "unauthorized",
 			"message": err.Error(),
@@ -279,8 +323,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if sessionID != "" {
-		meta, ok := h.sessions.get(sessionID)
+		meta, ok := h.sessions.getAndTouch(sessionID)
 		if !ok {
+			slog.Info("mcp_session_not_found", "method", r.Method, "sessionId", sessionID, "userId", claims.UserID)
 			writeJSONStatus(w, http.StatusNotFound, map[string]string{
 				"error":   "mcp_session_not_found",
 				"message": "MCP session expired or server restarted; please re-initialize",
@@ -290,12 +335,18 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if meta.WorkspaceID != claims.WorkspaceID ||
 			meta.ConversationID != claims.ConversationID ||
 			meta.UserID != claims.UserID {
+			slog.Warn("mcp_session_identity_mismatch", "method", r.Method, "sessionId", sessionID, "userId", claims.UserID)
 			writeJSONStatus(w, http.StatusForbidden, map[string]string{
 				"error":   "mcp_session_identity_mismatch",
 				"message": "Context Token identity or conversation does not match Mcp-Session-Id",
 			})
 			return
 		}
+	}
+
+	if r.Method == http.MethodGet {
+		w.Header().Set("Cache-Control", "no-cache, no-transform")
+		w.Header().Set("X-Accel-Buffering", "no")
 	}
 
 	ctx := context.WithValue(r.Context(), ctxClaimsKey{}, *claims)
@@ -313,16 +364,27 @@ func (h *Handler) EnqueueNotifications(notifs []game.TargetedNotification) {
 	case h.notifCh <- copied:
 	case <-h.closed:
 	default:
-		// Never block game state transitions if queue is saturated
+		slog.Warn("mcp_notification_queue_full", "droppedCount", len(notifs))
 	}
 }
 
 func (h *Handler) notificationLoop() {
 	defer h.wg.Done()
+	gcTicker := time.NewTicker(10 * time.Minute)
+	defer gcTicker.Stop()
+
 	for {
 		select {
 		case <-h.closed:
 			return
+		case <-gcTicker.C:
+			evicted := h.sessions.sweepExpired(time.Now().UTC().Add(-sessionIdleTTL))
+			for _, sid := range evicted {
+				h.mcpSrv.UnregisterSession(context.Background(), sid)
+			}
+			if len(evicted) > 0 {
+				slog.Info("mcp_sessions_swept", "evicted", len(evicted))
+			}
 		case batch := <-h.notifCh:
 			// Brief yield so any in-flight synchronous tools/call HTTP POST completes
 			// writing its JSON response before notifications flow through the GET SSE stream.
@@ -436,7 +498,7 @@ func (h *Handler) registerTools() {
 	h.mcpSrv.AddTool(
 		mcp.NewTool(
 			"join_lobby",
-			mcp.WithDescription("在 LOBBY 准备阶段（或上一局 GAME_OVER 后）入座参赛。"),
+			mcp.WithDescription("在 LOBBY 准备阶段入座参赛（或上一局 GAME_OVER 后重置新大厅并入座）。"),
 			mcp.WithString("preset",
 				mcp.Description("可选板子预设：6p（2狼2民1预1女巫）或 9p（3狼3民1预1女巫1猎人），仅空桌或1号房主生效。"),
 				mcp.Enum("6p", "9p"),
@@ -451,10 +513,7 @@ func (h *Handler) registerTools() {
 			idemKey := idempotencyKeyFromRequest(ctx, req)
 			room := h.gameMgr.GetOrCreateRoom(claims.WorkspaceID, claims.ConversationID)
 			resp, err := room.JoinLobby(claims, preset, idemKey)
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			return marshalToolResult(resp)
+			return h.handleActionTool(claims, "join_lobby", resp, err)
 		},
 	)
 
@@ -462,7 +521,7 @@ func (h *Handler) registerTools() {
 	h.mcpSrv.AddTool(
 		mcp.NewTool(
 			"leave_lobby",
-			mcp.WithDescription("在 LOBBY 准备阶段离开当前座位。"),
+			mcp.WithDescription("在 LOBBY 准备阶段离开座位，或在 GAME_OVER 对局结束后离席散场。"),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			claims, ok := claimsFromContext(ctx)
@@ -472,10 +531,7 @@ func (h *Handler) registerTools() {
 			idemKey := idempotencyKeyFromRequest(ctx, req)
 			room := h.gameMgr.GetOrCreateRoom(claims.WorkspaceID, claims.ConversationID)
 			resp, err := room.LeaveLobby(claims, idemKey)
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			return marshalToolResult(resp)
+			return h.handleActionTool(claims, "leave_lobby", resp, err)
 		},
 	)
 
@@ -502,10 +558,7 @@ func (h *Handler) registerTools() {
 			idemKey := idempotencyKeyFromRequest(ctx, req)
 			room := h.gameMgr.GetOrCreateRoom(claims.WorkspaceID, claims.ConversationID)
 			resp, err := room.StartGame(claims, preset, timeoutSec, idemKey)
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			return marshalToolResult(resp)
+			return h.handleActionTool(claims, "start_game", resp, err)
 		},
 	)
 
@@ -528,10 +581,7 @@ func (h *Handler) registerTools() {
 			idemKey := idempotencyKeyFromRequest(ctx, req)
 			room := h.gameMgr.GetOrCreateRoom(claims.WorkspaceID, claims.ConversationID)
 			resp, err := room.WolfChat(claims, message, idemKey)
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			return marshalToolResult(resp)
+			return h.handleActionTool(claims, "wolf_chat", resp, err)
 		},
 	)
 
@@ -539,7 +589,7 @@ func (h *Handler) registerTools() {
 	h.mcpSrv.AddTool(
 		mcp.NewTool(
 			"cast_night_action",
-			mcp.WithDescription("在 NIGHT 阶段提交夜间行动：狼人传 actionType=kill(或pass) 与 targetSeat；预言家传 actionType=check 与 targetSeat；女巫传 actionType=save|poison|pass（毒人时传 targetSeat）。"),
+			mcp.WithDescription("在 NIGHT 阶段提交夜间行动：狼人传 actionType=kill(或pass) 与 targetSeat（多狼存活时全员统一目标即锁刀，达成一致前可改选）；预言家传 actionType=check 与 targetSeat；女巫收到 your_turn_night_witch 后传 actionType=save|poison|pass（毒人时传 targetSeat）。"),
 			mcp.WithString("actionType",
 				mcp.Required(),
 				mcp.Description("夜间行动类型：kill | check | save | poison | pass"),
@@ -559,10 +609,7 @@ func (h *Handler) registerTools() {
 			idemKey := idempotencyKeyFromRequest(ctx, req)
 			room := h.gameMgr.GetOrCreateRoom(claims.WorkspaceID, claims.ConversationID)
 			resp, err := room.CastNightAction(claims, actionType, targetSeat, idemKey)
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			return marshalToolResult(resp)
+			return h.handleActionTool(claims, "cast_night_action", resp, err)
 		},
 	)
 
@@ -570,7 +617,7 @@ func (h *Handler) registerTools() {
 	h.mcpSrv.AddTool(
 		mcp.NewTool(
 			"finish_speech",
-			mcp.WithDescription("在 DAY_SPEECH 白天轮流发言阶段，仅当前持麦玩家在群聊发送完本轮公屏发言后调用，结束发言并交麦给下一位玩家。"),
+			mcp.WithDescription("在 DAY_SPEECH 白天轮流发言阶段，仅当前持麦玩家先在群聊发送 80～150 字口语化简短发言后立即调用，结束发言并交麦给下一位玩家。"),
 			mcp.WithString("summary",
 				mcp.Description("可选一句话发言摘要（记录至公共时间线，不超过 80 字）。"),
 			),
@@ -584,10 +631,7 @@ func (h *Handler) registerTools() {
 			idemKey := idempotencyKeyFromRequest(ctx, req)
 			room := h.gameMgr.GetOrCreateRoom(claims.WorkspaceID, claims.ConversationID)
 			resp, err := room.FinishSpeech(claims, summary, idemKey)
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			return marshalToolResult(resp)
+			return h.handleActionTool(claims, "finish_speech", resp, err)
 		},
 	)
 
@@ -595,7 +639,7 @@ func (h *Handler) registerTools() {
 	h.mcpSrv.AddTool(
 		mcp.NewTool(
 			"submit_vote",
-			mcp.WithDescription("在 DAY_VOTE 白天放逐投票阶段提交暗票（全员投完前严格保密）。targetSeat 传 1..N 投放逐票，传 0 弃票。"),
+			mcp.WithDescription("在 DAY_VOTE 白天放逐投票阶段提交暗票（全员投完开票前严格保密，且开票前可重复调用覆盖改票）。targetSeat 传 1..N 投放逐票，传 0 弃票。"),
 			mcp.WithNumber("targetSeat",
 				mcp.Required(),
 				mcp.Description("放逐目标座位号（1..N），弃票传 0。"),
@@ -608,15 +652,17 @@ func (h *Handler) registerTools() {
 			}
 			targetSeat := req.GetInt("targetSeat", req.GetInt("target_seat", -1))
 			if targetSeat < 0 {
-				return mcp.NewToolResultError("targetSeat 必填（1..N 或 0 弃票）"), nil
+				return h.handleActionTool(
+					claims,
+					"submit_vote",
+					game.ActionResponse{},
+					game.NewActionError(game.ErrInvalidAction, "missing_target_seat", "targetSeat 必填（1..N 投票，或 0 弃票）"),
+				)
 			}
 			idemKey := idempotencyKeyFromRequest(ctx, req)
 			room := h.gameMgr.GetOrCreateRoom(claims.WorkspaceID, claims.ConversationID)
 			resp, err := room.SubmitVote(claims, targetSeat, idemKey)
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			return marshalToolResult(resp)
+			return h.handleActionTool(claims, "submit_vote", resp, err)
 		},
 	)
 
@@ -637,17 +683,60 @@ func (h *Handler) registerTools() {
 			}
 			targetSeat := req.GetInt("targetSeat", req.GetInt("target_seat", -1))
 			if targetSeat < 0 {
-				return mcp.NewToolResultError("targetSeat 必填（1..N 或 0 压枪）"), nil
+				return h.handleActionTool(
+					claims,
+					"hunter_shoot",
+					game.ActionResponse{},
+					game.NewActionError(game.ErrInvalidAction, "missing_target_seat", "targetSeat 必填（1..N 开枪，或 0 压枪）"),
+				)
 			}
 			idemKey := idempotencyKeyFromRequest(ctx, req)
 			room := h.gameMgr.GetOrCreateRoom(claims.WorkspaceID, claims.ConversationID)
 			resp, err := room.HunterShoot(claims, targetSeat, idemKey)
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			return marshalToolResult(resp)
+			return h.handleActionTool(claims, "hunter_shoot", resp, err)
 		},
 	)
+}
+
+// handleActionTool serializes both successful actions AND business/phase rejections as normal
+// MCP TextContent JSON (IsError=false) so upstream Eino/Teamie tool observers never strip domain
+// error codes into bare "mcp_tool_error" strings.
+func (h *Handler) handleActionTool(claims auth.Claims, toolName string, resp game.ActionResponse, err error) (*mcp.CallToolResult, error) {
+	if err != nil {
+		view := h.gameMgr.GetView(claims)
+		code := game.ErrorCodeOf(err)
+		rej := game.ActionResponse{
+			OK:               false,
+			Action:           toolName,
+			ErrorCode:        code,
+			Message:          err.Error(),
+			PublicChatPolicy: view.PublicChatPolicy,
+			View:             view,
+		}
+		slog.Warn("mcp_tool_rejected",
+			"tool", toolName,
+			"errorCode", code,
+			"convId", claims.ConversationID,
+			"userId", claims.UserID,
+			"user", claims.DisplayName,
+			"phase", view.Phase,
+			"round", view.Round,
+			"message", rej.Message,
+		)
+		return marshalToolResult(rej)
+	}
+
+	slog.Info("mcp_tool_ok",
+		"tool", toolName,
+		"convId", claims.ConversationID,
+		"userId", claims.UserID,
+		"user", claims.DisplayName,
+		"phase", resp.View.Phase,
+		"round", resp.View.Round,
+		"eventSeq", resp.View.EventSeq,
+		"idempotentReplay", resp.IdempotentReplay,
+	)
+	return marshalToolResult(resp)
 }
 
 func marshalToolResult(v any) (*mcp.CallToolResult, error) {

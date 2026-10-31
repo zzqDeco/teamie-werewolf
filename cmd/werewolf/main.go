@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -19,11 +20,15 @@ import (
 )
 
 var (
-	buildVersion = "0.1.0"
+	buildVersion = "0.1.1"
 	buildSHA     = "dev"
 )
 
 func main() {
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+		Level: slog.LevelInfo,
+	})))
+
 	port := strings.TrimSpace(os.Getenv("PORT"))
 	if port == "" {
 		port = "8080"
@@ -52,7 +57,11 @@ func main() {
 		if sec, convErr := strconv.Atoi(rawSec); convErr == nil && sec >= 5 && sec <= 300 {
 			d := time.Duration(sec) * time.Second
 			timings.NightTimeout = d
+			timings.WitchTimeout = d
 			timings.SpeakerTurnTimeout = d
+			if sec >= 90 && timings.SpeakerTurnTimeout < 120*time.Second {
+				timings.SpeakerTurnTimeout = 120 * time.Second
+			}
 			timings.VoteTimeout = d
 		}
 	}
@@ -98,9 +107,13 @@ func main() {
 	defer stop()
 
 	go func() {
-		log.Printf(
-			"teamie-werewolf listening on :%s (version=%s sha=%s appID=%s teamieOrigin=%s devSimulator=%v)",
-			port, version, gitSHA, appID, teamieOrigin, devSimulator,
+		slog.Info("server_starting",
+			"addr", ":"+port,
+			"version", version,
+			"sha", gitSHA,
+			"appId", appID,
+			"teamieOrigin", teamieOrigin,
+			"devSimulator", devSimulator,
 		)
 		if serveErr := httpSrv.ListenAndServe(); serveErr != nil && !errors.Is(serveErr, http.ErrServerClosed) {
 			log.Fatalf("http server error: %v", serveErr)
@@ -108,7 +121,7 @@ func main() {
 	}()
 
 	<-ctx.Done()
-	log.Println("shutting down teamie-werewolf...")
+	slog.Info("server_shutting_down")
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	_ = httpSrv.Shutdown(shutdownCtx)

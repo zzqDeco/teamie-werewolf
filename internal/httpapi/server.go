@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"log/slog"
 	"mime"
 	"net/http"
 	"path"
@@ -577,6 +578,14 @@ func decodeOptionalJSON(r *http.Request, dst any) error {
 
 func writeActionResult(w http.ResponseWriter, resp game.ActionResponse, err error) {
 	if err == nil {
+		slog.Info("web_action_ok",
+			"action", resp.Action,
+			"convId", resp.View.ConversationID,
+			"userId", resp.View.Me.UserID,
+			"phase", resp.View.Phase,
+			"round", resp.View.Round,
+			"eventSeq", resp.View.EventSeq,
+		)
 		writeJSON(w, http.StatusOK, resp)
 		return
 	}
@@ -590,9 +599,17 @@ func writeActionResult(w http.ResponseWriter, resp game.ActionResponse, err erro
 		status = http.StatusConflict
 		code = "wrong_phase"
 	}
+	specificCode := game.ErrorCodeOf(err)
+	slog.Warn("web_action_rejected",
+		"status", status,
+		"error", code,
+		"errorCode", specificCode,
+		"message", err.Error(),
+	)
 	writeJSON(w, status, map[string]string{
-		"error":   code,
-		"message": err.Error(),
+		"error":     code,
+		"errorCode": specificCode,
+		"message":   err.Error(),
 	})
 }
 
