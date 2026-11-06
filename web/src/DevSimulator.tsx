@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { WerewolfEmblem } from "./icons";
 import type { Preset } from "./types";
 
 interface DevPlayerSession {
@@ -129,27 +130,32 @@ export function DevSimulator() {
   return (
     <div className="dev-shell">
       <header className="dev-toolbar">
-        <div>
-          <strong style={{ fontSize: "15px" }}>
-            🧪 狼人杀裁判台 · 本地多视角迷雾联调台（/dev）
-          </strong>
-          <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>
-            房间 ID：<code>{convId}</code> · 每个抽屉均为真实{" "}
-            <code>&lt;iframe sandbox&gt;</code> + <code>postMessage</code> 注入独立 HS256 Token
+        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <div className="ww-emblem-medallion">
+            <WerewolfEmblem className="ww-emblem-svg" />
+          </div>
+          <div>
+            <strong style={{ fontSize: "15px", color: "var(--gold-bright)" }}>
+              狼人杀裁判台 · 多视角暗金迷雾联调台（/dev）
+            </strong>
+            <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>
+              房间 ID：<code>{convId}</code> · 每个抽屉均为真实{" "}
+              <code>&lt;iframe sandbox&gt;</code> + <code>postMessage</code> 注入独立 HS256 Token
+            </div>
           </div>
         </div>
 
-        <div className="ww-btn-row">
+        <div className="ww-btn-row" style={{ flexWrap: "wrap" }}>
           <button
             type="button"
-            className={`ww-btn ${preset === "6p" ? "ww-btn-selected" : ""}`}
+            className={`ww-btn ${preset === "6p" ? "ww-btn-active" : ""}`}
             onClick={() => setPreset("6p")}
           >
             6人标准局
           </button>
           <button
             type="button"
-            className={`ww-btn ${preset === "9p" ? "ww-btn-selected" : ""}`}
+            className={`ww-btn ${preset === "9p" ? "ww-btn-active" : ""}`}
             onClick={() => setPreset("9p")}
           >
             9人猎人局
@@ -159,14 +165,14 @@ export function DevSimulator() {
             className="ww-btn"
             onClick={() => void loadSessions(convId, preset, "seat_all")}
           >
-            🪑 一键全员入座
+            全员入座
           </button>
           <button
             type="button"
-            className="ww-btn ww-btn-primary"
+            className="ww-btn ww-btn-gold"
             onClick={() => void loadSessions(convId, preset, "start_game")}
           >
-            🎲 一键满员发牌开局
+            ✦ 满员发牌开局
           </button>
           <button
             type="button"
@@ -177,12 +183,16 @@ export function DevSimulator() {
               )
             }
           >
-            🆕 新建测试房间
+            新建测试房间
           </button>
         </div>
       </header>
 
-      {error && <div className="ww-feedback err">{error}</div>}
+      {error && (
+        <div className="ww-toast err" style={{ marginBottom: "12px" }}>
+          <span>{error}</span>
+        </div>
+      )}
 
       {data && (
         <div className="dev-frames-grid">
@@ -190,9 +200,9 @@ export function DevSimulator() {
             <div key={`${convId}-${p.slot}`} className="dev-frame-wrap">
               <div className="dev-frame-header">
                 <span>
-                  视角 #{p.slot}：{p.displayName}
+                  视角 #{p.slot} · {p.displayName}
                 </span>
-                <code style={{ fontSize: "10.5px", fontWeight: 400 }}>
+                <code style={{ fontSize: "11px", fontWeight: 400, color: "var(--text-muted)" }}>
                   sub={p.userId.slice(-8)}
                 </code>
               </div>
