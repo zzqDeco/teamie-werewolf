@@ -381,8 +381,9 @@ export function App() {
         : "独狼在场 · 暗夜独立猎杀";
     }
     if (me.role === "SEER" && priv?.seerChecks && priv.seerChecks.length > 0) {
-      const last = priv.seerChecks[priv.seerChecks.length - 1];
-      return `第${last.round}夜查验：${last.targetSeat}号 → ${last.alignment === "WOLF" ? "查杀(狼)" : "金水(好人)"}`;
+      return `查验记录：${priv.seerChecks
+        .map((r) => `${r.targetSeat}号${r.alignment === "WOLF" ? "查杀" : "金水"}`)
+        .join(" · ")}`;
     }
     if (me.role === "WITCH" && priv?.witchState) {
       return `解药：${priv.witchState.antidoteLeft ? "在手" : "已用"} · 毒药：${priv.witchState.poisonLeft ? "在手" : "已用"}`;

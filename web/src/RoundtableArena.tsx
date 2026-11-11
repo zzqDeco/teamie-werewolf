@@ -178,15 +178,17 @@ export function RoundtableArena({
       parts.push("在场存活");
     }
 
-    if (effectiveTargetSeat === s.seat && targetingMode !== "none") {
-      parts.push("◎ 当前瞄准目标");
-    } else if (s.knownRole && (!hideRole || phase === "GAME_OVER")) {
+    if (s.knownRole && (!hideRole || phase === "GAME_OVER")) {
       parts.push(ROLE_SHORT_LABELS[s.knownRole]);
     } else if (!hideRole && seerChecks) {
       const rec = seerChecks.find((c) => c.targetSeat === s.seat);
       if (rec) {
         parts.push(rec.alignment === "WOLF" ? "查杀" : "金水");
       }
+    }
+
+    if (effectiveTargetSeat === s.seat && targetingMode !== "none") {
+      parts.push("◎ 当前瞄准目标");
     }
     return parts.join(" · ");
   };
@@ -438,7 +440,21 @@ export function RoundtableArena({
                 {/* Permanent Seat Number Chip (1..9 ALWAYS visible even when eliminated) */}
                 <span className="ww-seat-seal ww-seat-num-chip">{seat.seat}</span>
 
-                {/* Status / Role / Reticle Micro-Badge */}
+                {/* Dedicated Top-Right Seer Check Alignment Seal (never overwritten by vote/speech/aim status) */}
+                {seerRec && (
+                  <span
+                    className={`ww-orbit-seer-chip ${
+                      seerRec.alignment === "WOLF" ? "flag-danger" : "flag-gold"
+                    }`}
+                    title={`第${seerRec.round}夜查验：${
+                      seerRec.alignment === "WOLF" ? "查杀(狼)" : "金水(好人)"
+                    }`}
+                  >
+                    {seerRec.alignment === "WOLF" ? "狼" : "金"}
+                  </span>
+                )}
+
+                {/* Bottom-Right Live Turn / Vote / Aim Micro-Badge */}
                 {isAimed ? (
                   <span
                     className={`ww-orbit-flag ${
@@ -460,14 +476,6 @@ export function RoundtableArena({
                 ) : (phase === "DAY_VOTE" && seat.hasVoted) ||
                   (phase === "DAY_SPEECH" && seat.hasSpoken) ? (
                   <span className="ww-orbit-flag flag-done">✓</span>
-                ) : seerRec ? (
-                  <span
-                    className={`ww-orbit-flag ${
-                      seerRec.alignment === "WOLF" ? "flag-danger" : "flag-gold"
-                    }`}
-                  >
-                    {seerRec.alignment === "WOLF" ? "狼" : "金"}
-                  </span>
                 ) : null}
               </div>
 

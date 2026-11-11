@@ -709,6 +709,23 @@ input:focus-visible {
   color: var(--text-secondary);
 }
 
+/* Top-Right Independent Seer Alignment Seal on Medallion */
+.ww-orbit-seer-chip {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 3px;
+  border-radius: 999px;
+  font-size: 9.5px;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.65);
+}
+
 /* Bottom-Right Status Micro-Seal on Medallion */
 .ww-orbit-flag {
   position: absolute;
