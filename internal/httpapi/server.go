@@ -21,6 +21,10 @@ import (
 	"github.com/zzqDeco/teamie-werewolf/internal/mcpserver"
 )
 
+func init() {
+	_ = mime.AddExtensionType(".webp", "image/webp")
+}
+
 // Config configures the unified Werewolf HTTP + MCP + embedded Web UI server.
 type Config struct {
 	AppID         string

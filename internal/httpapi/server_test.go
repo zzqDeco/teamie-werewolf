@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"testing/fstest"
 	"time"
 
 	"github.com/zzqDeco/teamie-werewolf/internal/auth"
@@ -56,6 +57,10 @@ func TestWebUIProbeAndProductionDevGate(t *testing.T) {
 		Version:       "0.1.0",
 		GitSHA:        "abc1234",
 		DevSimulator:  false,
+		StaticFS: fstest.MapFS{
+			"index.html":                  &fstest.MapFile{Data: []byte("<!doctype html><html><body>ok</body></html>")},
+			"assets/tarot-werewolf.webp": &fstest.MapFile{Data: []byte("RIFF\x00\x00\x00\x00WEBPVP8 ")},
+		},
 	}, verifier, mgr)
 	defer srv.Close()
 
@@ -86,6 +91,19 @@ func TestWebUIProbeAndProductionDevGate(t *testing.T) {
 	}
 	if !strings.Contains(string(body), "<html") {
 		t.Fatalf("expected HTML document on GET /, got %q", string(body))
+	}
+
+	// Verify .webp tarot artwork assets are served with Content-Type: image/webp (safe under nosniff)
+	webpResp, err := http.Get(ts.URL + "/assets/tarot-werewolf.webp")
+	if err != nil {
+		t.Fatalf("GET .webp asset: %v", err)
+	}
+	_ = webpResp.Body.Close()
+	if webpResp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 on .webp asset, got %d", webpResp.StatusCode)
+	}
+	if webpCT := strings.ToLower(webpResp.Header.Get("Content-Type")); !strings.Contains(webpCT, "image/webp") {
+		t.Fatalf("expected image/webp Content-Type on .webp asset, got %q", webpCT)
 	}
 
 	// Health & version checks

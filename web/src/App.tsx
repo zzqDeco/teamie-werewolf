@@ -5,12 +5,21 @@ import type { BridgeState } from "./bridge";
 import {
   ChevronIcon,
   CrownTrophyIcon,
+  DaggerIcon,
   EyeToggleIcon,
+  MicCrestIcon,
   MoonStarIcon,
-  RoleEmblem,
+  MuteLockIcon,
+  ScaleOrderIcon,
+  ScrollIcon,
+  SparkleStarIcon,
   SunCrestIcon,
+  WaxSealIcon,
   WerewolfEmblem,
 } from "./icons";
+import { RoundtableArena } from "./RoundtableArena";
+import type { TargetingMode } from "./RoundtableArena";
+import { ROLE_ARCANA, TAROT_BACK_IMAGE } from "./tarotArt";
 import type { Phase, PlayerView, Preset, Role, SeatView, VoteTallyRecord } from "./types";
 
 const PHASE_LABELS: Record<Phase, string> = {
@@ -30,33 +39,11 @@ const ROLE_LABELS: Record<Role, string> = {
   HUNTER: "猎人",
 };
 
-const ROLE_SUBTITLES: Record<Role, string> = {
-  WEREWOLF: "暗夜猎手 · 暗频协同锁刀",
-  VILLAGER: "神圣村民 · 听发言辨狼踪",
-  SEER: "星象先知 · 每夜洞悉一人阵营",
-  WITCH: "炼金女巫 · 执掌解药与毒药",
-  HUNTER: "银弹猎魔人 · 出局可拔枪反击",
-};
+const ROMAN_ROUNDS = ["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"];
 
-const SEAT_SEAL_COLORS = [
-  "#9f6b32",
-  "#7c4dff",
-  "#2f7d6d",
-  "#b03a48",
-  "#3d6cb9",
-  "#9a4d87",
-  "#826a3c",
-  "#387c8c",
-  "#a35638",
-];
-
-type TargetingMode =
-  | "none"
-  | "wolf_kill"
-  | "seer_check"
-  | "witch_poison"
-  | "hunter_shoot"
-  | "day_vote";
+function toRoman(n: number): string {
+  return ROMAN_ROUNDS[n] ?? String(n);
+}
 
 interface GroupedVoteRow {
   targetSeat: number;
@@ -91,12 +78,6 @@ function groupVotes(tally: VoteTallyRecord): GroupedVoteRow[] {
   return rows;
 }
 
-function formatClock(sec: number): string {
-  const m = Math.floor(sec / 60);
-  const s = sec % 60;
-  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-}
-
 export function App() {
   const [bridgeState, setBridgeState] = useState<BridgeState>({
     ready: false,
@@ -109,6 +90,7 @@ export function App() {
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState<{ text: string; isErr?: boolean } | null>(null);
   const [hideRole, setHideRole] = useState(false);
+  const [zoomTarot, setZoomTarot] = useState(false);
 
   // Interactive seat targeting & collapsible chronicle dock
   const [selectedSeat, setSelectedSeat] = useState<number | null>(null);
@@ -170,7 +152,7 @@ export function App() {
     };
   }, [token, requestRefresh]);
 
-  // Capture initial span whenever phaseDeadlineMs changes so progress bar scales smoothly
+  // Capture initial span whenever phaseDeadlineMs changes so center dial arc scales smoothly
   useEffect(() => {
     if (!view?.phaseDeadlineMs) return;
     const now = Date.now();
@@ -185,6 +167,26 @@ export function App() {
   useEffect(() => {
     setSelectedSeat(null);
   }, [view?.phase, view?.round, view?.private?.hunterCanShoot]);
+
+  // Reset card concealment & zoom overlay when returning to lobby or losing dealt card
+  useEffect(() => {
+    if (!view?.me.role || view.phase === "LOBBY") {
+      setZoomTarot(false);
+      setHideRole(false);
+    }
+  }, [view?.me.role, view?.phase]);
+
+  // Support Escape key dismissal on full-scale Tarot modal
+  useEffect(() => {
+    if (!zoomTarot) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setZoomTarot(false);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [zoomTarot]);
 
   // Keep wolf encrypted chat scrolled to newest entry
   useEffect(() => {
@@ -227,22 +229,29 @@ export function App() {
     [token, busy, requestRefresh],
   );
 
-  // Handshake Waiting Screen
+  // Handshake Waiting Screen featuring the engraved Gold-Foil Astrolabe Card Back
   if (!bridgeState.ready || !bridgeState.context) {
     return (
       <main className="ww-shell">
         <section className="ww-wait-screen">
-          <div className="ww-crest-ring">
-            <WerewolfEmblem className="ww-emblem-svg" style={{ width: 28, height: 28 }} />
+          <div className="ww-wait-tarot">
+            <img src={TAROT_BACK_IMAGE} alt="塔罗星盘牌背" />
           </div>
-          <strong style={{ fontSize: "15px", color: "var(--gold-bright)" }}>
+          <strong
+            style={{
+              fontFamily: "var(--font-serif)",
+              fontSize: "16px",
+              letterSpacing: "0.06em",
+              color: "var(--gold-bright)",
+            }}
+          >
             狼人杀 · 暗金裁判台
           </strong>
-          <span style={{ fontSize: "12.5px", color: "var(--text-secondary)", maxWidth: 260 }}>
+          <span style={{ fontSize: "12px", color: "var(--text-secondary)", maxWidth: 230 }}>
             正在等待 Teamie 群聊宿主完成安全握手（<code>teamie:mcp-app:init</code>）…
           </span>
-          <small style={{ fontSize: "11.5px", color: "var(--text-faint)", maxWidth: 250 }}>
-            请在 Teamie 群聊右侧「群聊应用」抽屉中打开本应用。
+          <small style={{ fontSize: "11px", color: "var(--text-faint)", maxWidth: 220 }}>
+            请在群聊右侧「群聊应用」面板中打开本应用。
           </small>
         </section>
       </main>
@@ -253,10 +262,12 @@ export function App() {
     return (
       <main className="ww-shell">
         <section className="ww-wait-screen">
-          <div className="ww-crest-ring">
-            <RoleEmblem className="ww-emblem-svg" />
+          <div className="ww-wait-tarot">
+            <img src={TAROT_BACK_IMAGE} alt="正在洗牌" />
           </div>
-          <strong style={{ color: "var(--gold-bright)" }}>正在铺设命运牌桌…</strong>
+          <strong style={{ fontFamily: "var(--font-serif)", color: "var(--gold-bright)" }}>
+            正在铺陈星盘与命运牌阵…
+          </strong>
         </section>
       </main>
     );
@@ -351,47 +362,44 @@ export function App() {
     return null;
   })();
 
-  const targetHintLabel: Record<TargetingMode, string> = {
-    none: "",
-    wolf_kill: "点击座位瞄准袭击目标",
-    seer_check: "点击其他存活座位查验",
-    witch_poison: "点击座位可用毒药",
-    hunter_shoot: "点击存活座位开枪带走",
-    day_vote: "点击座位盖印放逐暗票",
-  };
+  const arcana = me.role ? ROLE_ARCANA[me.role] : null;
+  const isCardFaceDown = !arcana || hideRole;
 
-  // Build private role subtitle for the Tarot identity plaque
-  const buildIdentitySub = (): string => {
-    if (!me.role) return "等待全员入座发牌";
-    if (hideRole) return "底牌已暗置防窥 · 点击翻开查看身份与线索";
+  const buildArcanaIntel = (): string => {
+    if (!me.role || !arcana) {
+      return me.seated
+        ? "已缔结入座契约，满员发牌后翻转揭晓身份底牌"
+        : "尚未入座 · 点击下方按钮入座参与博弈";
+    }
+    if (hideRole) {
+      return "命运底牌已暗置防窥 · 轻触按钮或牌面翻开";
+    }
     if (me.role === "WEREWOLF" && priv?.wolfTeammateSeats) {
       const mates = priv.wolfTeammateSeats.filter((n) => n !== me.seat);
       return mates.length > 0
-        ? `狼同伴：${mates.map((n) => `${n}号`).join("、")} · 夜间可暗频协商`
-        : "独狼在场 · 夜间独立锁定刀口";
+        ? `狼同伴：${mates.map((n) => `${n}号`).join("、")} · 暗频协同锁刀`
+        : "独狼在场 · 暗夜独立猎杀";
     }
     if (me.role === "SEER" && priv?.seerChecks && priv.seerChecks.length > 0) {
-      const last = priv.seerChecks[priv.seerChecks.length - 1];
-      return `最近查验：${last.targetSeat}号 → ${last.alignment === "WOLF" ? "查杀(狼)" : "金水(好人)"}`;
+      return `查验记录：${priv.seerChecks
+        .map((r) => `${r.targetSeat}号${r.alignment === "WOLF" ? "查杀" : "金水"}`)
+        .join(" · ")}`;
     }
     if (me.role === "WITCH" && priv?.witchState) {
       return `解药：${priv.witchState.antidoteLeft ? "在手" : "已用"} · 毒药：${priv.witchState.poisonLeft ? "在手" : "已用"}`;
     }
-    return ROLE_SUBTITLES[me.role];
+    return arcana.motto;
   };
 
   const latestEventText =
     view.publicEvents && view.publicEvents.length > 0
       ? view.publicEvents[view.publicEvents.length - 1].summary
-      : "牌桌就绪，等待玩家入座开启对局";
+      : "星盘就绪，等待玩家入座开启对局";
 
   const latestVoteTally =
     view.voteHistory && view.voteHistory.length > 0
       ? view.voteHistory[view.voteHistory.length - 1]
       : null;
-
-  const emptySeatCount =
-    phase === "LOBBY" ? Math.max(0, targetPlayers - seats.length) : 0;
 
   return (
     <main
@@ -399,121 +407,169 @@ export function App() {
         phase === "NIGHT" ? "is-night" : phase === "GAME_OVER" ? "is-over" : ""
       }`}
     >
-      {/* 1. Sticky Ornate Header + Fluid Countdown Progress */}
-      <header className="ww-topbar">
-        <div className="ww-topbar-inner">
-          <span
-            className={`ww-phase-crest ${
-              phase === "NIGHT" ? "night" : phase === "GAME_OVER" ? "over" : ""
-            }`}
+      {/* Full-Scale 3D Tarot Artwork Inspection Overlay */}
+      {zoomTarot && arcana && !hideRole && (
+        <div
+          className="ww-tarot-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-label="底牌立绘鉴赏"
+          onClick={() => setZoomTarot(false)}
+        >
+          <div className="ww-arcana-latin">{arcana.latinTitle}</div>
+          <div className="ww-modal-card-frame">
+            <img src={arcana.image} alt={arcana.cnTitle} />
+          </div>
+          <div
+            style={{
+              fontFamily: "var(--font-serif)",
+              fontSize: "18px",
+              fontWeight: 700,
+              color: "var(--gold-bright)",
+            }}
           >
-            {phase === "NIGHT" ? (
-              <MoonStarIcon className="ww-phase-icon" />
-            ) : phase === "GAME_OVER" ? (
-              <CrownTrophyIcon className="ww-phase-icon" />
-            ) : (
-              <SunCrestIcon className="ww-phase-icon" />
-            )}
-            <span>
-              {round > 0 ? `第${round}${phase === "NIGHT" ? "夜" : "天"} · ` : ""}
-              {PHASE_LABELS[phase]}
-            </span>
-          </span>
-
-          <div className="ww-topbar-meta">
-            <span className="ww-preset-pill">
-              {preset === "9p" ? "9人猎人局" : "6人标准局"}
-            </span>
-            {remainingSec !== null && phase !== "LOBBY" && phase !== "GAME_OVER" && (
-              <span className={`ww-timer-pill ${remainingSec <= 15 ? "urgent" : ""}`}>
-                {formatClock(remainingSec)}
-              </span>
-            )}
+            {arcana.cnTitle}
           </div>
-        </div>
-
-        {remainingSec !== null && phase !== "LOBBY" && phase !== "GAME_OVER" && (
-          <div className="ww-countdown-track" aria-hidden="true">
-            <div
-              className={`ww-countdown-fill ${remainingSec <= 15 ? "urgent" : ""}`}
-              style={{ width: `${countdownPct}%` }}
-            />
+          <div style={{ fontSize: "12px", color: "var(--text-secondary)", maxWidth: 220 }}>
+            {arcana.motto}
           </div>
-        )}
-      </header>
-
-      {/* 2. Main Scrollable Tarot Stage */}
-      <div className="ww-stage">
-        {/* Tarot Identity Card (or Lobby Seat Strip) */}
-        {me.role ? (
           <button
             type="button"
-            className={`ww-tarot-id ${
-              hideRole ? "is-concealed" : `role-${me.role}`
-            }`}
-            onClick={() => setHideRole((v) => !v)}
-            title="点击翻转隐藏/展开底牌（防窥屏）"
+            className="ww-ghost-chip"
+            autoFocus
+            onClick={(e) => {
+              e.stopPropagation();
+              setZoomTarot(false);
+            }}
           >
-            <div className="ww-id-left">
-              <div className="ww-emblem-medallion">
-                <RoleEmblem
-                  role={hideRole ? undefined : me.role}
-                  className="ww-emblem-svg"
-                />
-              </div>
-              <div className="ww-id-copy">
-                <div className="ww-id-title">
-                  {me.seat ? `${me.seat}号 · ` : ""}
-                  {hideRole
-                    ? "命运底牌已暗置"
-                    : `我的底牌：${me.roleLabel || ROLE_LABELS[me.role]}`}
-                  {me.seated && !me.alive ? "（已出局）" : ""}
-                </div>
-                <div className="ww-id-sub">{buildIdentitySub()}</div>
-              </div>
-            </div>
-
-            <span className="ww-id-toggle">
-              <EyeToggleIcon hidden={hideRole} className="ww-phase-icon" />
-              <span>{hideRole ? "翻开" : "暗置"}</span>
-            </span>
+            收起立绘 · Esc
           </button>
-        ) : (
-          <div className="ww-lobby-id-strip">
-            <div className="ww-id-left">
-              <div className="ww-emblem-medallion">
-                <RoleEmblem className="ww-emblem-svg" />
-              </div>
-              <div className="ww-id-copy">
-                <div className="ww-id-title">
-                  {me.seated ? `${me.seat}号 · ${me.displayName}` : me.displayName}
-                </div>
-                <div className="ww-id-sub">
-                  {me.seated ? "已入座等待发牌" : "观战席 · 入座后参与发牌博弈"}
-                </div>
-              </div>
-            </div>
-            <span className={`ww-badge ${me.seated ? "gold" : ""}`}>
-              {me.seated ? `${me.seat}号席` : "未入座"}
-            </span>
-          </div>
-        )}
+        </div>
+      )}
 
-        {/* Public Chat Discipline Banner */}
-        <section
-          className={`ww-policy-strip ${
-            !publicChatPolicy.allowed
-              ? "locked"
-              : isMyMic
-                ? "my-mic"
-                : phase === "DAY_SPEECH"
-                  ? "wait-mic"
-                  : ""
+      {/* 1. Slim Classical Header */}
+      <header className="ww-topbar">
+        <span
+          className={`ww-phase-heading ${
+            phase === "NIGHT" ? "night" : phase === "GAME_OVER" ? "over" : ""
           }`}
         >
-          <span aria-hidden="true">
-            {!publicChatPolicy.allowed ? "🤫" : isMyMic ? "🎙️" : "⚖️"}
+          {phase === "NIGHT" ? (
+            <MoonStarIcon className="ww-mini-svg" />
+          ) : phase === "GAME_OVER" ? (
+            <CrownTrophyIcon className="ww-mini-svg" />
+          ) : (
+            <SunCrestIcon className="ww-mini-svg" />
+          )}
+          <span>
+            {round > 0 ? `${toRoman(round)} · ` : ""}
+            {PHASE_LABELS[phase]}
           </span>
+        </span>
+
+        <span className="ww-preset-tag">
+          {preset === "9p" ? "IX · 猎人局" : "VI · 标准局"}
+        </span>
+      </header>
+
+      {/* 2. Open Canvas Scrollable Stage */}
+      <div className="ww-stage">
+        {/* True 3D Flipping Engraved Tarot Identity Showcase */}
+        <section className="ww-tarot-showcase">
+          <button
+            type="button"
+            className="ww-card-3d-scene"
+            onClick={() => {
+              if (!arcana) return;
+              if (hideRole) {
+                setHideRole(false);
+              } else {
+                setZoomTarot(true);
+              }
+            }}
+            title={
+              !arcana
+                ? "发牌后揭晓命运塔罗"
+                : hideRole
+                  ? "点击翻开底牌"
+                  : "点击放大鉴赏塔罗原画"
+            }
+          >
+            <div className={`ww-card-3d-inner ${isCardFaceDown ? "is-flipped" : ""}`}>
+              <div className="ww-card-face card-front">
+                <img
+                  src={arcana ? arcana.image : TAROT_BACK_IMAGE}
+                  alt={arcana ? arcana.cnTitle : "未发牌"}
+                />
+              </div>
+              <div className="ww-card-face card-back">
+                <img src={TAROT_BACK_IMAGE} alt="塔罗牌背" />
+              </div>
+            </div>
+          </button>
+
+          <div className="ww-arcana-info">
+            <div className="ww-arcana-latin">
+              {arcana && !hideRole ? arcana.latinTitle : "ARCANA · FATE"}
+            </div>
+            <div className="ww-arcana-title-row">
+              <span
+                className={`ww-arcana-role ${
+                  !hideRole && me.role === "WEREWOLF" ? "is-wolf" : ""
+                }`}
+              >
+                {!me.role
+                  ? me.displayName
+                  : hideRole
+                    ? "命运底牌已暗置"
+                    : `我的底牌：${me.roleLabel || ROLE_LABELS[me.role]}`}
+              </span>
+              {me.seated && me.seat !== undefined && (
+                <span className="ww-arcana-seat">
+                  {me.seat}号{!me.alive ? "·出局" : ""}
+                </span>
+              )}
+            </div>
+
+            <div className="ww-arcana-intel">{buildArcanaIntel()}</div>
+
+            {arcana && (
+              <div className="ww-arcana-actions">
+                <button
+                  type="button"
+                  className="ww-tarot-id"
+                  onClick={() => setHideRole((v) => !v)}
+                >
+                  <EyeToggleIcon hidden={hideRole} className="ww-mini-svg" />
+                  <span>{hideRole ? "翻开底牌" : "暗置防窥"}</span>
+                </button>
+                {!hideRole && (
+                  <button
+                    type="button"
+                    className="ww-ghost-chip"
+                    onClick={() => setZoomTarot(true)}
+                  >
+                    <span>立绘</span>
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* Public Chat Discipline Ribbon (Zero System Emojis) */}
+        <section
+          className={`ww-policy-ribbon ${
+            !publicChatPolicy.allowed ? "locked" : isMyMic ? "my-mic" : ""
+          }`}
+        >
+          {!publicChatPolicy.allowed ? (
+            <MuteLockIcon className="ww-mini-svg" style={{ marginTop: 2 }} />
+          ) : isMyMic ? (
+            <MicCrestIcon className="ww-mini-svg" style={{ marginTop: 2 }} />
+          ) : (
+            <ScaleOrderIcon className="ww-mini-svg" style={{ marginTop: 2 }} />
+          )}
           <span>{publicChatPolicy.reason}</span>
         </section>
 
@@ -534,159 +590,54 @@ export function App() {
               }}
               aria-label="关闭提示"
             >
-              ✕
+              ×
             </button>
           </div>
         )}
 
-        {/* 2-Column Interactive Seat Plaque Grid */}
-        <section>
-          <div className="ww-block-header">
-            <span className="ww-block-title">
-              圆桌席位（{seats.length}/{targetPlayers}）
-            </span>
-            {targetingMode !== "none" ? (
-              <span className="ww-block-hint">{targetHintLabel[targetingMode]}</span>
-            ) : view.speech && phase === "DAY_SPEECH" ? (
-              <span className="ww-block-hint">
-                当前持麦：{view.speech.currentSpeakerSeat}号
-              </span>
-            ) : null}
-          </div>
+        <div className="ww-filigree-rule" aria-hidden="true">
+          ✦
+        </div>
 
-          <div className="ww-seats-grid">
-            {seats.map((s) => {
-              const selectable = canSelectSeat(s);
-              const isAimed = selectable && effectiveTargetSeat === s.seat;
-              const sealBg = s.alive
-                ? SEAT_SEAL_COLORS[(s.seat - 1) % SEAT_SEAL_COLORS.length]
-                : "#47424f";
+        {/* Arcane Roundtable Astrolabe Theater */}
+        <RoundtableArena
+          phase={phase}
+          targetPlayers={targetPlayers}
+          seats={seats}
+          mySeat={me.seat}
+          hideRole={hideRole}
+          seerChecks={priv?.seerChecks}
+          currentSpeakerSeat={view.speech?.currentSpeakerSeat}
+          targetingMode={targetingMode}
+          isDangerAim={isDangerAim}
+          effectiveTargetSeat={effectiveTargetSeat}
+          canSelectSeat={canSelectSeat}
+          onSelectSeat={(seatNum) =>
+            setSelectedSeat((prev) => (prev === seatNum ? null : seatNum))
+          }
+          remainingSec={remainingSec}
+          countdownPct={countdownPct}
+          winner={view.winner}
+        />
 
-              const seerRecord =
-                !hideRole && priv?.seerChecks
-                  ? priv.seerChecks.find((c) => c.targetSeat === s.seat)
-                  : undefined;
-
-              const statusText = !s.alive
-                ? "✕ 已出局"
-                : s.isSpeaking
-                  ? "正在发言…"
-                  : phase === "DAY_VOTE" && s.hasVoted
-                    ? "✓ 已盖暗票"
-                    : !s.isSpeaking && s.hasSpoken
-                      ? "✓ 已发言"
-                      : s.isMe
-                        ? "我 · 在场"
-                        : "在场存活";
-
-              return (
-                <button
-                  key={s.seat}
-                  type="button"
-                  disabled={!selectable}
-                  onClick={() => {
-                    if (!selectable) return;
-                    setSelectedSeat((prev) => (prev === s.seat ? null : s.seat));
-                  }}
-                  className={[
-                    "ww-seat-card",
-                    selectable ? "can-select" : "",
-                    s.isMe ? "is-me" : "",
-                    s.isSpeaking ? "is-speaking" : "",
-                    !s.alive ? "is-dead" : "",
-                    isAimed ? "is-selected" : "",
-                    isAimed && isDangerAim ? "danger-aim" : "",
-                  ]
-                    .filter(Boolean)
-                    .join(" ")}
-                >
-                  <div className="ww-seat-row-top">
-                    <div className="ww-seat-identity">
-                      <span className="ww-seat-seal" style={{ background: sealBg }}>
-                        {s.seat}
-                      </span>
-                      <span className="ww-seat-title" title={s.displayName}>
-                        {s.displayName}
-                      </span>
-                    </div>
-
-                    {s.isSpeaking && (
-                      <span className="ww-eq-bars" title="正在发言">
-                        <span className="ww-eq-bar b1" />
-                        <span className="ww-eq-bar b2" />
-                        <span className="ww-eq-bar b3" />
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="ww-seat-row-bottom">
-                    <span className="ww-seat-status">{statusText}</span>
-
-                    {isAimed ? (
-                      <span
-                        className={`ww-badge ${
-                          isDangerAim ? "aim-danger" : "aim-gold"
-                        }`}
-                      >
-                        ◎ 已瞄准
-                      </span>
-                    ) : s.knownRole && (!hideRole || phase === "GAME_OVER") ? (
-                      <span
-                        className={`ww-badge ${
-                          s.knownRole === "WEREWOLF" ? "wolf" : "good"
-                        }`}
-                      >
-                        {ROLE_LABELS[s.knownRole]}
-                      </span>
-                    ) : seerRecord ? (
-                      <span
-                        className={`ww-badge ${
-                          seerRecord.alignment === "WOLF" ? "wolf" : "good"
-                        }`}
-                      >
-                        {seerRecord.alignment === "WOLF" ? "查杀" : "金水"}
-                      </span>
-                    ) : s.isMe ? (
-                      <span className="ww-badge gold">本尊</span>
-                    ) : null}
-                  </div>
-                </button>
-              );
-            })}
-
-            {/* Visual Empty Tarot Placeholders in Lobby */}
-            {Array.from({ length: emptySeatCount }).map((_, idx) => {
-              const slotNum = seats.length + idx + 1;
-              return (
-                <div key={`empty-${slotNum}`} className="ww-seat-card is-empty-slot">
-                  <div className="ww-seat-row-top">
-                    <div className="ww-seat-identity">
-                      <span
-                        className="ww-seat-seal"
-                        style={{ background: "rgba(212, 175, 99, 0.14)", color: "var(--text-muted)" }}
-                      >
-                        {slotNum}
-                      </span>
-                      <span className="ww-seat-status">虚位以待</span>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </section>
+        <div className="ww-filigree-rule" aria-hidden="true">
+          ✦
+        </div>
 
         {/* ================================================================
-            Contextual Tarot Action Altars
+            De-Boxed Contextual Action Altars (Ergonomic for 264px width)
             ================================================================ */}
 
         {/* LOBBY ALTAR */}
         {phase === "LOBBY" && (
-          <section className="ww-altar">
-            <div className="ww-altar-head">
-              <span className="ww-altar-title">牌局契约配置</span>
-              <span className="ww-altar-sub">
-                {preset === "9p" ? "3狼 · 3民 · 预女猎" : "2狼 · 2民 · 预女"}
+          <section className="ww-altar-pane">
+            <div className="ww-altar-header">
+              <span className="ww-altar-heading">
+                <SparkleStarIcon className="ww-mini-svg" />
+                <span>契约仪式</span>
+              </span>
+              <span className="ww-altar-note">
+                {preset === "9p" ? "3狼3民·预女猎" : "2狼2民·预女"}
               </span>
             </div>
 
@@ -706,52 +657,50 @@ export function App() {
               </div>
             )}
 
-            <div className="ww-btn-row">
-              {!me.seated ? (
+            {!me.seated ? (
+              <button
+                type="button"
+                disabled={busy || seats.length >= targetPlayers}
+                className="ww-btn ww-btn-gold ww-w-full"
+                onClick={() => void runAction("join_lobby", { preset })}
+              >
+                入座缔结契约（{seats.length}/{targetPlayers}）
+              </button>
+            ) : (
+              <div className="ww-btn-row">
                 <button
                   type="button"
-                  disabled={busy || seats.length >= targetPlayers}
-                  className="ww-btn ww-btn-gold ww-w-full"
-                  onClick={() => void runAction("join_lobby", { preset })}
+                  disabled={busy}
+                  className="ww-btn"
+                  onClick={() => void runAction("leave_lobby")}
                 >
-                  入座缔结契约（{seats.length}/{targetPlayers}）
+                  离席
                 </button>
-              ) : (
-                <>
-                  <button
-                    type="button"
-                    disabled={busy}
-                    className="ww-btn"
-                    onClick={() => void runAction("leave_lobby")}
-                  >
-                    离席
-                  </button>
-                  <button
-                    type="button"
-                    disabled={busy || seats.length !== targetPlayers}
-                    className="ww-btn ww-btn-gold ww-flex-1"
-                    onClick={() => void runAction("start_game", { preset })}
-                  >
-                    {seats.length === targetPlayers
-                      ? "✦ 洗牌发牌 · 开启首夜"
-                      : `等待满员 (${seats.length}/${targetPlayers})`}
-                  </button>
-                </>
-              )}
-            </div>
+                <button
+                  type="button"
+                  disabled={busy || seats.length !== targetPlayers}
+                  className="ww-btn ww-btn-gold ww-flex-1"
+                  onClick={() => void runAction("start_game", { preset })}
+                >
+                  {seats.length === targetPlayers
+                    ? "洗牌发牌 · 入夜"
+                    : `等待满员 (${seats.length}/${targetPlayers})`}
+                </button>
+              </div>
+            )}
           </section>
         )}
 
         {/* NIGHT ALTAR */}
-        {phase === "NIGHT" && me.seated && (
-          <section className="ww-altar">
-            <div className="ww-altar-head">
-              <span className="ww-altar-title">
-                <MoonStarIcon className="ww-phase-icon" />
-                <span>暗夜行动圣坛</span>
+        {phase === "NIGHT" && (
+          <section className="ww-altar-pane">
+            <div className="ww-altar-header">
+              <span className="ww-altar-heading">
+                <MoonStarIcon className="ww-mini-svg" />
+                <span>暗夜圣坛</span>
               </span>
-              <span className="ww-altar-sub">
-                {me.pendingAction ? "轮到你行动" : "静候破晓"}
+              <span className="ww-altar-note">
+                {me.seated && me.pendingAction ? "请执行技能" : "静候破晓"}
               </span>
             </div>
 
@@ -759,10 +708,10 @@ export function App() {
             {me.role === "WEREWOLF" && (
               <>
                 <div className="ww-wolf-sanctum">
-                  <div className="ww-altar-head">
+                  <div className="ww-altar-header">
                     <span
                       style={{
-                        fontSize: "12px",
+                        fontSize: "11.5px",
                         fontWeight: 700,
                         color: "#ff9ca7",
                         display: "inline-flex",
@@ -770,26 +719,25 @@ export function App() {
                         gap: "5px",
                       }}
                     >
-                      <WerewolfEmblem className="ww-phase-icon" />
-                      <span>狼人血契暗频（仅狼队可见）</span>
+                      <WerewolfEmblem className="ww-mini-svg" />
+                      <span>血契暗频</span>
                     </span>
                     {priv?.wolfIntentions &&
                       Object.keys(priv.wolfIntentions).length > 0 && (
-                        <span style={{ fontSize: "11px", color: "#e8a8b0" }}>
-                          刀口：
+                        <span style={{ fontSize: "10.5px", color: "#e8a8b0" }}>
                           {Object.entries(priv.wolfIntentions)
                             .map(([w, t]) =>
-                              Number(t) === 0 ? `${w}号→空刀` : `${w}号→${t}号`,
+                              Number(t) === 0 ? `${w}→空` : `${w}→${t}号`,
                             )
-                            .join("，")}
+                            .join(" ")}
                         </span>
                       )}
                   </div>
 
                   <div className="ww-wolf-stream" ref={wolfStreamRef}>
                     {!priv?.wolfChat || priv.wolfChat.length === 0 ? (
-                      <span style={{ fontSize: "11.5px", color: "#d49ba2", opacity: 0.8 }}>
-                        暗频已加密接通，先和狼队友统一今夜袭击目标吧。
+                      <span style={{ fontSize: "11px", color: "#d49ba2", opacity: 0.82 }}>
+                        暗频仅狼队友可见，先商议今夜袭击目标。
                       </span>
                     ) : (
                       priv.wolfChat.map((c) => {
@@ -822,7 +770,7 @@ export function App() {
                     >
                       <input
                         className="ww-input ww-flex-1"
-                        placeholder="发送暗频战术（公屏不可见）…"
+                        placeholder="发送暗频密语…"
                         value={wolfDraft}
                         maxLength={240}
                         onChange={(e) => setWolfDraft(e.target.value)}
@@ -839,25 +787,11 @@ export function App() {
                 </div>
 
                 {wolfCanAct && (
-                  <div className="ww-btn-row">
-                    <button
-                      type="button"
-                      disabled={busy}
-                      className={`ww-btn ${myWolfPick === 0 && selectedSeat === null ? "ww-btn-active" : ""}`}
-                      onClick={() => {
-                        setSelectedSeat(null);
-                        void runAction("cast_night_action", {
-                          actionType: "pass",
-                          targetSeat: 0,
-                        });
-                      }}
-                    >
-                      放弃空刀
-                    </button>
+                  <>
                     <button
                       type="button"
                       disabled={busy || effectiveTargetSeat === null}
-                      className="ww-btn ww-btn-crimson ww-flex-1"
+                      className="ww-btn ww-btn-crimson ww-w-full"
                       onClick={() => {
                         if (effectiveTargetSeat === null) return;
                         void runAction("cast_night_action", {
@@ -866,15 +800,34 @@ export function App() {
                         });
                       }}
                     >
-                      {effectiveTargetSeat !== null
-                        ? myWolfPick === effectiveTargetSeat
-                          ? `✓ 已选袭击 ${effectiveTargetSeat}号（狼队一致前可改）`
-                          : myWolfPick !== undefined
-                            ? `🗡️ 改选袭击 ${effectiveTargetSeat}号`
-                            : `🗡️ 锁定袭击 ${effectiveTargetSeat}号`
-                        : "请先在上方点击袭击座位"}
+                      <DaggerIcon className="ww-mini-svg" />
+                      <span>
+                        {effectiveTargetSeat !== null
+                          ? myWolfPick === effectiveTargetSeat
+                            ? `已选袭击 ${effectiveTargetSeat}号（点圆桌可改）`
+                            : myWolfPick !== undefined
+                              ? `改选袭击 ${effectiveTargetSeat}号`
+                              : `锁定袭击 ${effectiveTargetSeat}号`
+                          : "请在圆桌上轻触袭击目标"}
+                      </span>
                     </button>
-                  </div>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      className={`ww-btn ww-w-full ${
+                        myWolfPick === 0 && selectedSeat === null ? "ww-btn-active" : ""
+                      }`}
+                      onClick={() => {
+                        setSelectedSeat(null);
+                        void runAction("cast_night_action", {
+                          actionType: "pass",
+                          targetSeat: 0,
+                        });
+                      }}
+                    >
+                      放弃袭击（空刀）
+                    </button>
+                  </>
                 )}
               </>
             )}
@@ -895,28 +848,21 @@ export function App() {
                       });
                     }}
                   >
-                    {effectiveTargetSeat !== null
-                      ? `✦ 启示查验 ${effectiveTargetSeat}号 阵营`
-                      : "请先在上方点击要查验的玩家座位"}
+                    <SparkleStarIcon className="ww-mini-svg" />
+                    <span>
+                      {effectiveTargetSeat !== null
+                        ? `启示查验 ${effectiveTargetSeat}号 阵营`
+                        : "请在圆桌上轻触查验目标"}
+                    </span>
                   </button>
                 ) : (
-                  <div className="ww-sub-box" style={{ color: "var(--text-muted)" }}>
-                    本夜星象查验已完成，请静候破晓后再择机报查验。
+                  <div className="ww-sub-strip">
+                    本夜星象查验已完成，请静候破晓。
                   </div>
                 )}
 
                 {priv?.seerChecks && priv.seerChecks.length > 0 && (
-                  <div className="ww-sub-box">
-                    <div
-                      style={{
-                        fontSize: "11.5px",
-                        fontWeight: 700,
-                        color: "var(--gold-bright)",
-                        marginBottom: "4px",
-                      }}
-                    >
-                      先知查验卷轴
-                    </div>
+                  <div className="ww-sub-strip">
                     {priv.seerChecks.map((r) => (
                       <div
                         key={r.round}
@@ -927,7 +873,7 @@ export function App() {
                         }}
                       >
                         <span>
-                          第{r.round}夜 · {r.targetSeat}号 {r.displayName}
+                          第{r.round}夜 · {r.targetSeat}号
                         </span>
                         <b
                           style={{
@@ -937,7 +883,7 @@ export function App() {
                                 : "var(--emerald)",
                           }}
                         >
-                          {r.alignment === "WOLF" ? "狼人（查杀）" : "好人（金水）"}
+                          {r.alignment === "WOLF" ? "查杀(狼)" : "金水(好人)"}
                         </b>
                       </div>
                     ))}
@@ -950,146 +896,157 @@ export function App() {
             {me.role === "WITCH" && priv?.witchState && (
               <>
                 <div className="ww-btn-row">
-                  <span
-                    className={`ww-badge ${
-                      priv.witchState.antidoteLeft ? "good" : ""
-                    }`}
-                  >
-                    解药：{priv.witchState.antidoteLeft ? "可用" : "已耗尽"}
+                  <span className={`ww-badge ${priv.witchState.antidoteLeft ? "good" : ""}`}>
+                    解药：{priv.witchState.antidoteLeft ? "可用" : "已耗"}
                   </span>
-                  <span
-                    className={`ww-badge ${
-                      priv.witchState.poisonLeft ? "wolf" : ""
-                    }`}
-                  >
-                    毒药：{priv.witchState.poisonLeft ? "可用" : "已耗尽"}
+                  <span className={`ww-badge ${priv.witchState.poisonLeft ? "wolf" : ""}`}>
+                    毒药：{priv.witchState.poisonLeft ? "可用" : "已耗"}
                   </span>
                 </div>
 
                 {me.alive && priv.witchState.canActNow ? (
                   <>
                     {priv.witchState.antidoteLeft && (
-                      <div className="ww-sub-box">
+                      <div className="ww-sub-strip">
                         {priv.witchState.tonightAttackedSeat &&
                         priv.witchState.tonightAttackedSeat > 0 ? (
-                          <div className="ww-btn-row" style={{ justifyContent: "space-between" }}>
+                          <div
+                            style={{
+                              display: "flex",
+                              flexDirection: "column",
+                              gap: "6px",
+                            }}
+                          >
                             <span>
-                              今夜 <b>{priv.witchState.tonightAttackedSeat}号</b> 遇袭倒牌
+                              今夜 <b>{priv.witchState.tonightAttackedSeat}号席</b> 遇袭倒牌
                             </span>
                             <button
                               type="button"
                               disabled={busy}
-                              className="ww-btn ww-btn-emerald"
+                              className="ww-btn ww-btn-emerald ww-w-full"
                               onClick={() =>
                                 void runAction("cast_night_action", {
                                   actionType: "save",
                                 })
                               }
                             >
-                              赐予解药救起
+                              赐予解药救起 {priv.witchState.tonightAttackedSeat}号
                             </button>
                           </div>
                         ) : (
-                          <span style={{ color: "var(--text-muted)" }}>
-                            今夜狼人选择空刀，无人遇袭。
-                          </span>
+                          <span>今夜狼人空刀，无人遇袭。</span>
                         )}
                       </div>
                     )}
 
-                    <div className="ww-btn-row">
+                    {priv.witchState.poisonLeft && (
                       <button
                         type="button"
-                        disabled={busy}
-                        className="ww-btn ww-flex-1"
-                        onClick={() =>
-                          void runAction("cast_night_action", { actionType: "pass" })
-                        }
+                        disabled={busy || effectiveTargetSeat === null}
+                        className="ww-btn ww-btn-crimson ww-w-full"
+                        onClick={() => {
+                          if (effectiveTargetSeat === null) return;
+                          void runAction("cast_night_action", {
+                            actionType: "poison",
+                            targetSeat: effectiveTargetSeat,
+                          });
+                        }}
                       >
-                        不用药（跳过）
+                        {effectiveTargetSeat !== null
+                          ? `赐下毒药淘汰 ${effectiveTargetSeat}号`
+                          : "点选圆桌座位可用毒药"}
                       </button>
+                    )}
 
-                      {priv.witchState.poisonLeft && (
-                        <button
-                          type="button"
-                          disabled={busy || effectiveTargetSeat === null}
-                          className="ww-btn ww-btn-crimson ww-flex-1"
-                          onClick={() => {
-                            if (effectiveTargetSeat === null) return;
-                            void runAction("cast_night_action", {
-                              actionType: "poison",
-                              targetSeat: effectiveTargetSeat,
-                            });
-                          }}
-                        >
-                          {effectiveTargetSeat !== null
-                            ? `☠️ 毒杀 ${effectiveTargetSeat}号`
-                            : "点座位用毒"}
-                        </button>
-                      )}
-                    </div>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      className="ww-btn ww-w-full"
+                      onClick={() =>
+                        void runAction("cast_night_action", { actionType: "pass" })
+                      }
+                    >
+                      不使用药水（跳过）
+                    </button>
                   </>
                 ) : (
-                  <div className="ww-sub-box" style={{ color: "var(--text-muted)" }}>
+                  <div className="ww-sub-strip">
                     {me.actionHint || "正在等待狼人与预言家回合结束…"}
                   </div>
                 )}
               </>
             )}
 
-            {/* VILLAGER / HUNTER / ELIMINATED IDLE NIGHT */}
-            {(me.role === "VILLAGER" || me.role === "HUNTER" || !me.alive) && (
-              <div className="ww-sub-box" style={{ color: "var(--text-muted)" }}>
-                {me.actionHint || "夜幕深沉，请闭眼静候神狼博弈结束迎来黎明。"}
+            {/* VILLAGER / HUNTER / DEAD WOLF / SPECTATOR IDLE NIGHT */}
+            {(!me.seated ||
+              !me.role ||
+              me.role === "VILLAGER" ||
+              me.role === "HUNTER" ||
+              (me.role === "WEREWOLF" && !me.alive)) && (
+              <div className="ww-sub-strip">
+                {me.actionHint || "夜幕深沉，请静候神狼博弈结束迎来黎明。"}
               </div>
             )}
           </section>
         )}
 
-        {/* HUNTER REVENGE ALTAR */}
-        {priv?.hunterCanShoot && (
-          <section className="ww-altar danger-altar">
-            <div className="ww-altar-head">
-              <span className="ww-altar-title" style={{ color: "#ff9ca7" }}>
-                猎魔银弹 · 临终反击触发
+        {/* DAY_ANNOUNCE ALTAR (When waiting on dawn transition or non-shooter watching Hunter) */}
+        {phase === "DAY_ANNOUNCE" && !priv?.hunterCanShoot && (
+          <section className="ww-altar-pane">
+            <div className="ww-altar-header">
+              <span className="ww-altar-heading">
+                <SunCrestIcon className="ww-mini-svg" />
+                <span>破晓宣告</span>
               </span>
             </div>
-            <div style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
-              请点击上方存活座位瞄准带走目标，或选择压枪不开枪：
+            <div className="ww-sub-strip">
+              {me.actionHint || latestEventText}
             </div>
-            <div className="ww-btn-row">
-              <button
-                type="button"
-                disabled={busy}
-                className="ww-btn"
-                onClick={() => void runAction("hunter_shoot", { targetSeat: 0 })}
-              >
-                压枪不开枪
-              </button>
-              <button
-                type="button"
-                disabled={busy || effectiveTargetSeat === null}
-                className="ww-btn ww-btn-crimson ww-flex-1"
-                onClick={() => {
-                  if (effectiveTargetSeat === null) return;
-                  void runAction("hunter_shoot", { targetSeat: effectiveTargetSeat });
-                }}
-              >
-                {effectiveTargetSeat !== null
-                  ? `🎯 开枪带走 ${effectiveTargetSeat}号`
-                  : "请先在上方点击带走目标"}
-              </button>
+          </section>
+        )}
+
+        {/* HUNTER REVENGE ALTAR */}
+        {priv?.hunterCanShoot && (
+          <section className="ww-altar-pane">
+            <div className="ww-altar-header">
+              <span className="ww-altar-heading" style={{ color: "#ff9ca7" }}>
+                猎魔银弹 · 临终反击
+              </span>
             </div>
+            <button
+              type="button"
+              disabled={busy || effectiveTargetSeat === null}
+              className="ww-btn ww-btn-crimson ww-w-full"
+              onClick={() => {
+                if (effectiveTargetSeat === null) return;
+                void runAction("hunter_shoot", { targetSeat: effectiveTargetSeat });
+              }}
+            >
+              {effectiveTargetSeat !== null
+                ? `开枪带走 ${effectiveTargetSeat}号`
+                : "请在圆桌上轻触带走目标"}
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              className="ww-btn ww-w-full"
+              onClick={() => void runAction("hunter_shoot", { targetSeat: 0 })}
+            >
+              压枪不开枪
+            </button>
           </section>
         )}
 
         {/* DAY_SPEECH MIC STEPPER ALTAR */}
         {phase === "DAY_SPEECH" && view.speech && (
-          <section className="ww-altar">
-            <div className="ww-altar-head">
-              <span className="ww-altar-title">圆桌单人麦序轨</span>
-              <span className="ww-altar-sub">
-                进度 {view.speech.spokenSeats.length}/{view.speech.speakingOrder.length}
+          <section className="ww-altar-pane">
+            <div className="ww-altar-header">
+              <span className="ww-altar-heading">
+                <MicCrestIcon className="ww-mini-svg" />
+                <span>单人麦序轨</span>
+              </span>
+              <span className="ww-altar-note">
+                {view.speech.spokenSeats.length}/{view.speech.speakingOrder.length}
               </span>
             </div>
 
@@ -1100,18 +1057,20 @@ export function App() {
                 return (
                   <span
                     key={seatNum}
-                    style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}
+                    style={{ display: "inline-flex", alignItems: "center", gap: "3px" }}
                   >
                     <span
                       className={`ww-mic-node ${
                         isCurr ? "current" : isDone ? "done" : ""
                       }`}
                     >
-                      {isDone ? "✓" : isCurr ? "🎙️" : ""}
+                      {isDone ? "✓ " : ""}
                       {seatNum}号
                     </span>
                     {idx < (view.speech?.speakingOrder.length ?? 0) - 1 && (
-                      <span className="ww-mic-arrow">→</span>
+                      <span style={{ color: "var(--text-faint)", fontSize: "10px" }}>
+                        →
+                      </span>
                     )}
                   </span>
                 );
@@ -1122,7 +1081,7 @@ export function App() {
               <>
                 <input
                   className="ww-input"
-                  placeholder="可选：填写一句话站边/归票摘要（计入编年记录）"
+                  placeholder="可选：一句话归票摘要（计入记录）"
                   value={speechNote}
                   maxLength={80}
                   onChange={(e) => setSpeechNote(e.target.value)}
@@ -1137,12 +1096,12 @@ export function App() {
                     void runAction("finish_speech", summary ? { summary } : {});
                   }}
                 >
-                  ✓ 群聊陈词完毕 · 交麦给下一位
+                  群聊陈词完毕 · 交麦
                 </button>
               </>
             ) : (
-              <div className="ww-sub-box" style={{ color: "var(--text-muted)" }}>
-                当前由 <b>{view.speech.currentSpeakerSeat}号</b> 在左侧群聊陈词，请待其交麦后再发言。
+              <div className="ww-sub-strip">
+                当前由 <b>{view.speech.currentSpeakerSeat}号</b> 在左侧群聊陈词，请待其交麦。
               </div>
             )}
           </section>
@@ -1150,62 +1109,63 @@ export function App() {
 
         {/* DAY_VOTE SECRET BALLOT ALTAR */}
         {phase === "DAY_VOTE" && !priv?.hunterCanShoot && (
-          <section className="ww-altar">
-            <div className="ww-altar-head">
-              <span className="ww-altar-title">火漆放逐暗票台</span>
+          <section className="ww-altar-pane">
+            <div className="ww-altar-header">
+              <span className="ww-altar-heading">
+                <WaxSealIcon className="ww-mini-svg" />
+                <span>火漆放逐暗票</span>
+              </span>
               {priv?.mySubmittedVote !== undefined && (
                 <span className="ww-badge gold">
-                  已盖印：{priv.mySubmittedVote === 0 ? "弃票" : `${priv.mySubmittedVote}号`}
+                  已投：{priv.mySubmittedVote === 0 ? "弃票" : `${priv.mySubmittedVote}号`}
                 </span>
               )}
             </div>
 
             {me.seated && me.alive ? (
               <>
-                <div style={{ fontSize: "11.5px", color: "var(--text-muted)" }}>
-                  开票前全员选票严格保密，结算前可随时点击座位改票（平票无人出局）：
-                </div>
-                <div className="ww-btn-row">
-                  <button
-                    type="button"
-                    disabled={busy}
-                    className={`ww-btn ${
-                      priv?.mySubmittedVote === 0 && selectedSeat === null
-                        ? "ww-btn-active"
-                        : ""
-                    }`}
-                    onClick={() => {
-                      setSelectedSeat(null);
-                      void runAction("submit_vote", { targetSeat: 0 });
-                    }}
-                  >
-                    弃票
-                  </button>
-
-                  <button
-                    type="button"
-                    disabled={busy || effectiveTargetSeat === null}
-                    className="ww-btn ww-btn-gold ww-flex-1"
-                    onClick={() => {
-                      if (effectiveTargetSeat === null) return;
-                      void runAction("submit_vote", {
-                        targetSeat: effectiveTargetSeat,
-                      });
-                    }}
-                  >
+                <button
+                  type="button"
+                  disabled={busy || effectiveTargetSeat === null}
+                  className="ww-btn ww-btn-gold ww-w-full"
+                  onClick={() => {
+                    if (effectiveTargetSeat === null) return;
+                    void runAction("submit_vote", {
+                      targetSeat: effectiveTargetSeat,
+                    });
+                  }}
+                >
+                  <WaxSealIcon className="ww-mini-svg" />
+                  <span>
                     {effectiveTargetSeat !== null
                       ? priv?.mySubmittedVote === effectiveTargetSeat
-                        ? `✓ 已暗投 ${effectiveTargetSeat}号（点其他座位可改票）`
+                        ? `已暗投 ${effectiveTargetSeat}号（点圆桌可改票）`
                         : priv?.mySubmittedVote !== undefined
-                          ? `🗳️ 改投 ${effectiveTargetSeat}号 放逐`
-                          : `🗳️ 盖印放逐 ${effectiveTargetSeat}号`
-                      : "请先在上方点击放逐目标座位"}
-                  </button>
-                </div>
+                          ? `改投 ${effectiveTargetSeat}号 放逐`
+                          : `盖印放逐 ${effectiveTargetSeat}号`
+                      : "请在圆桌上轻触放逐目标"}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  disabled={busy}
+                  className={`ww-btn ww-w-full ${
+                    priv?.mySubmittedVote === 0 && selectedSeat === null
+                      ? "ww-btn-active"
+                      : ""
+                  }`}
+                  onClick={() => {
+                    setSelectedSeat(null);
+                    void runAction("submit_vote", { targetSeat: 0 });
+                  }}
+                >
+                  投弃权票
+                </button>
               </>
             ) : (
-              <div className="ww-sub-box" style={{ color: "var(--text-muted)" }}>
-                正在等待场上存活玩家完成火漆暗票投递…
+              <div className="ww-sub-strip">
+                正在等待存活玩家完成火漆暗票投递…
               </div>
             )}
           </section>
@@ -1213,24 +1173,22 @@ export function App() {
 
         {/* GAME_OVER VICTORY ALTAR */}
         {phase === "GAME_OVER" && (
-          <section className="ww-altar victory-altar">
-            <div className="ww-altar-head">
-              <span className="ww-altar-title">
-                <CrownTrophyIcon className="ww-phase-icon" />
+          <section className="ww-altar-pane">
+            <div className="ww-altar-header">
+              <span className="ww-altar-heading">
+                <CrownTrophyIcon className="ww-mini-svg" />
                 <span>
-                  {view.winner === "GOOD" ? "好人阵营获胜！" : "狼人阵营获胜！"}
+                  {view.winner === "GOOD" ? "好人阵营获胜" : "狼人阵营获胜"}
                 </span>
               </span>
-              <span className="ww-badge gold">全场底牌已揭晓</span>
+              <span className="ww-badge gold">底牌已全开</span>
             </div>
 
-            <div style={{ fontSize: "12.5px", color: "var(--text-secondary)" }}>
-              {view.winReason}
-            </div>
+            <div className="ww-sub-strip">{view.winReason}</div>
 
             {latestVoteTally && (
               <div className="ww-vote-round">
-                <div style={{ fontSize: "11.5px", fontWeight: 700, color: "var(--gold)" }}>
+                <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--gold)" }}>
                   第{latestVoteTally.round}天终局票型
                 </div>
                 {groupVotes(latestVoteTally).map((row) => (
@@ -1257,7 +1215,7 @@ export function App() {
                   className="ww-btn"
                   onClick={() => void runAction("leave_lobby")}
                 >
-                  离开牌桌
+                  离席
                 </button>
               )}
               <button
@@ -1266,7 +1224,7 @@ export function App() {
                 className="ww-btn ww-btn-gold ww-flex-1"
                 onClick={() => void runAction("join_lobby", { preset })}
               >
-                ✦ 再开一局
+                再开一局
               </button>
             </div>
           </section>
@@ -1281,10 +1239,13 @@ export function App() {
           onClick={() => setChronicleOpen((v) => !v)}
           aria-expanded={chronicleOpen}
         >
-          <span className="ww-chronicle-latest">📜 {latestEventText}</span>
+          <span className="ww-chronicle-latest">
+            <ScrollIcon className="ww-mini-svg" />
+            <span>{latestEventText}</span>
+          </span>
           <span className="ww-chronicle-toggle-pill">
             <span>记录 / 票型</span>
-            <ChevronIcon open={chronicleOpen} className="ww-phase-icon" />
+            <ChevronIcon open={chronicleOpen} className="ww-mini-svg" />
           </span>
         </button>
 
@@ -1333,7 +1294,7 @@ export function App() {
                     <div key={vh.round} className="ww-vote-round">
                       <div
                         style={{
-                          fontSize: "11.5px",
+                          fontSize: "11px",
                           fontWeight: 700,
                           color: "var(--gold-bright)",
                         }}

@@ -147,13 +147,31 @@ describe("Dark Gothic Tarot App UI", () => {
 
     expect(container.textContent).toContain("我的底牌：狼人");
     expect(container.textContent).toContain("今晚刀3号？");
+    expect(container.querySelector(".ww-astrolabe-svg")).not.toBeNull();
 
-    // Flip Tarot identity plaque to conceal role
+    // Open full-scale Tarot artwork zoom modal and dismiss via Escape key
+    const zoomBtn = Array.from(container.querySelectorAll(".ww-ghost-chip")).find((b) =>
+      b.textContent?.includes("立绘"),
+    ) as HTMLButtonElement;
+    expect(zoomBtn).toBeDefined();
+    await act(async () => {
+      zoomBtn.click();
+    });
+    expect(container.querySelector(".ww-tarot-modal")).not.toBeNull();
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    });
+    expect(container.querySelector(".ww-tarot-modal")).toBeNull();
+
+    // Flip 3D Tarot identity card to conceal role
+    const card3dInner = container.querySelector(".ww-card-3d-inner") as HTMLElement;
+    expect(card3dInner.classList.contains("is-flipped")).toBe(false);
     const roleBtn = container.querySelector(".ww-tarot-id") as HTMLButtonElement;
     await act(async () => {
       roleBtn.click();
     });
     expect(container.textContent).toContain("命运底牌已暗置");
+    expect(card3dInner.classList.contains("is-flipped")).toBe(true);
 
     // Click Seat #3 (Carol) directly on the seat grid to aim
     const seatButtons = Array.from(
@@ -201,6 +219,115 @@ describe("Dark Gothic Tarot App UI", () => {
     });
     expect(container.textContent).toContain("1号、3号");
     expect(container.textContent).toContain("4号 (2票·出局)");
+
+    await act(async () => {
+      root.unmount();
+    });
+  });
+
+  it("keeps Seer check alignment badges and inspector details visible alongside voting and aiming status in DAY_VOTE", async () => {
+    const fakeParent = { postMessage: vi.fn() } as unknown as Window;
+    Object.defineProperty(window, "parent", {
+      value: fakeParent,
+      configurable: true,
+    });
+
+    const seerVoteView: PlayerView = {
+      workspaceId: "ws-1",
+      conversationId: "conv-seer",
+      preset: "6p",
+      targetPlayers: 6,
+      phase: "DAY_VOTE",
+      round: 2,
+      eventSeq: 20,
+      phaseDeadlineMs: Date.now() + 45_000,
+      phaseTimeoutSec: 60,
+      me: {
+        userId: "u-5",
+        displayName: "Eve",
+        seated: true,
+        seat: 5,
+        role: "SEER",
+        roleLabel: "预言家",
+        alive: true,
+        pendingAction: "submit_vote",
+      },
+      seats: [
+        { seat: 1, displayName: "Alice", isMe: false, alive: true, hasVoted: true },
+        { seat: 2, displayName: "Bob", isMe: false, alive: true, hasVoted: true },
+        { seat: 3, displayName: "Carol", isMe: false, alive: true, hasVoted: false },
+        { seat: 4, displayName: "Dave", isMe: false, alive: false },
+        { seat: 5, displayName: "Eve", isMe: true, alive: true, knownRole: "SEER", hasVoted: false },
+        { seat: 6, displayName: "Frank", isMe: false, alive: true, hasVoted: false },
+      ],
+      publicChatPolicy: {
+        allowed: false,
+        reason: "放逐暗票阶段，公屏禁止发言",
+      },
+      private: {
+        seerChecks: [
+          { round: 1, targetSeat: 1, displayName: "Alice", alignment: "GOOD" },
+          { round: 2, targetSeat: 2, displayName: "Bob", alignment: "WOLF" },
+        ],
+      },
+    };
+
+    vi.spyOn(api, "fetchMyView").mockResolvedValue(seerVoteView);
+    vi.spyOn(api, "subscribeViewStream").mockReturnValue(() => {});
+
+    const root = createRoot(container);
+    await act(async () => {
+      root.render(<App />);
+    });
+
+    await act(async () => {
+      window.dispatchEvent(
+        new MessageEvent("message", {
+          source: fakeParent,
+          origin: "https://120.25.210.202",
+          data: {
+            type: "teamie:mcp-app:init",
+            payload: {
+              appId: "app-1",
+              slug: "werewolf",
+              name: "狼人杀裁判台",
+              webUrl: "https://120.25.210.202:9443/",
+              token: "jwt-seer-vote",
+              expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
+              workspaceId: "ws-1",
+              conversationId: "conv-seer",
+              user: { id: "u-5", displayName: "Eve" },
+            },
+          },
+        }),
+      );
+    });
+
+    // Full multi-round check summary stays visible in daytime Arcana header
+    expect(container.textContent).toContain("查验记录：1号金水 · 2号查杀");
+
+    const seatButtons = Array.from(
+      container.querySelectorAll(".ww-seat-card"),
+    ) as HTMLButtonElement[];
+    const seat1Btn = seatButtons.find((b) => b.textContent?.includes("Alice"))!;
+    const seat2Btn = seatButtons.find((b) => b.textContent?.includes("Bob"))!;
+
+    // Both Seat 1 (GOOD) and Seat 2 (WOLF) have already voted (✓), AND still show 金 / 狼 simultaneously
+    expect(seat1Btn.querySelector(".ww-orbit-seer-chip")?.textContent).toBe("金");
+    expect(seat1Btn.querySelector(".ww-orbit-flag")?.textContent).toBe("✓");
+    expect(seat2Btn.querySelector(".ww-orbit-seer-chip")?.textContent).toBe("狼");
+    expect(seat2Btn.querySelector(".ww-orbit-flag")?.textContent).toBe("✓");
+
+    // Aiming at Seat 2 during DAY_VOTE preserves both 狼 chip AND 查杀 in the bottom inspector bar
+    await act(async () => {
+      seat2Btn.click();
+    });
+    expect(seat2Btn.querySelector(".ww-orbit-seer-chip")?.textContent).toBe("狼");
+    expect(seat2Btn.querySelector(".ww-orbit-flag")?.textContent).toBe("◎");
+    const inspector = container.querySelector(".ww-inspector-bar");
+    expect(inspector?.textContent).toContain("已投暗票");
+    expect(inspector?.textContent).toContain("查杀");
+    expect(inspector?.textContent).toContain("◎ 当前瞄准目标");
 
     await act(async () => {
       root.unmount();
