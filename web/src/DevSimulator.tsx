@@ -23,9 +23,16 @@ interface DevTokensResponse {
  * Renders 6 (or 9) real child <iframe src="/"> instances side-by-side and drives them through
  * the authentic Teamie postMessage protocol (ready -> init -> refresh-token).
  */
+const WIDTH_PRESETS = [
+  { width: 280, label: "280px 紧凑" },
+  { width: 400, label: "400px 默认" },
+  { width: 540, label: "540px 舒展" },
+  { width: 740, label: "740px 双栏剧场" },
+] as const;
+
 export function DevSimulator() {
   const [preset, setPreset] = useState<Preset>("6p");
-  const [exactHostWidth, setExactHostWidth] = useState(true);
+  const [paneWidth, setPaneWidth] = useState<number>(400);
   const [convId, setConvId] = useState("00000000-0000-4000-8000-devconvroom001");
   const [data, setData] = useState<DevTokensResponse | null>(null);
   const [error, setError] = useState("");
@@ -157,20 +164,37 @@ export function DevSimulator() {
               狼人杀裁判台 · 黑金版画塔罗 & 圆桌星盘联调台（/dev）
             </strong>
             <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>
-              房间 ID：<code>{convId}</code> · 当前视口：
-              <b>{exactHostWidth ? "264px（Teamie 真实群聊右侧栏宽度）" : "360px（宽屏抽屉）"}</b>
+              房间 ID：<code>{convId}</code> · Teamie 动态面板宽度：
+              <b>
+                {paneWidth}px{paneWidth >= 660 ? "（双栏全景圆桌模式）" : paneWidth === 400 ? "（默认侧栏宽度）" : ""}
+              </b>
             </div>
           </div>
         </div>
 
         <div className="ww-btn-row" style={{ flexWrap: "wrap" }}>
-          <button
-            type="button"
-            className={`ww-btn ${exactHostWidth ? "ww-btn-active" : ""}`}
-            onClick={() => setExactHostWidth((v) => !v)}
-          >
-            {exactHostWidth ? "视口：264px 真实侧栏" : "视口：360px 宽屏"}
-          </button>
+          <label className="dev-width-slider">
+            <span>宽度</span>
+            <input
+              type="range"
+              min={280}
+              max={960}
+              step={8}
+              value={paneWidth}
+              onChange={(e) => setPaneWidth(Number(e.target.value))}
+            />
+            <code style={{ color: "var(--gold-bright)", fontWeight: 700 }}>{paneWidth}px</code>
+          </label>
+          {WIDTH_PRESETS.map((item) => (
+            <button
+              key={item.width}
+              type="button"
+              className={`ww-btn ${paneWidth === item.width ? "ww-btn-active" : ""}`}
+              onClick={() => setPaneWidth(item.width)}
+            >
+              {item.label}
+            </button>
+          ))}
           <button
             type="button"
             className={`ww-btn ${preset === "6p" ? "ww-btn-active" : ""}`}
@@ -222,16 +246,15 @@ export function DevSimulator() {
       {data && (
         <div
           className="dev-frames-grid"
-          style={
-            exactHostWidth
-              ? { gridTemplateColumns: "repeat(auto-fill, minmax(264px, 264px))", justifyContent: "center" }
-              : undefined
-          }
+          style={{
+            gridTemplateColumns: `repeat(auto-fill, minmax(min(100%, ${paneWidth}px), ${paneWidth}px))`,
+          }}
         >
           {data.players.map((p) => (
             <div
               key={`${convId}-${p.slot}`}
-              className={`dev-frame-wrap ${exactHostWidth ? "exact-host-width" : ""}`}
+              className="dev-frame-wrap"
+              style={{ width: `${paneWidth}px`, maxWidth: "100%" }}
             >
               <div className="dev-frame-header">
                 <span>

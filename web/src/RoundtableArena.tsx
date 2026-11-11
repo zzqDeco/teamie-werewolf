@@ -492,7 +492,7 @@ export function RoundtableArena({
         })}
       </div>
 
-      {/* Untruncated Spotlight Inspector Bar (ensures full names & roles read cleanly even on 264px) */}
+      {/* Untruncated Spotlight Inspector Bar (ensures full names & roles read cleanly across 280px–960px) */}
       {inspectedSeat && (
         <div className="ww-inspector-bar">
           <span className="ww-inspector-seat">{inspectedSeat.seat}号席</span>
