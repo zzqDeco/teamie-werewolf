@@ -333,4 +333,97 @@ describe("Dark Gothic Tarot App UI", () => {
       root.unmount();
     });
   });
+
+  it("unlocks dual-column chronicle split view when Teamie dynamic app pane expands >= 700px", async () => {
+    const fakeParent = { postMessage: vi.fn() } as unknown as Window;
+    Object.defineProperty(window, "parent", {
+      value: fakeParent,
+      configurable: true,
+    });
+
+    let resizeCallback: ResizeObserverCallback | null = null;
+    const origResizeObserver = globalThis.ResizeObserver;
+    class MockResizeObserver {
+      constructor(cb: ResizeObserverCallback) {
+        resizeCallback = cb;
+      }
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    }
+    (globalThis as Record<string, unknown>).ResizeObserver = MockResizeObserver;
+
+    try {
+      vi.spyOn(api, "fetchMyView").mockResolvedValue(makeNightWolfView());
+      vi.spyOn(api, "subscribeViewStream").mockReturnValue(() => {});
+
+      const root = createRoot(container);
+      await act(async () => {
+        root.render(<App />);
+      });
+
+      await act(async () => {
+        window.dispatchEvent(
+          new MessageEvent("message", {
+            source: fakeParent,
+            origin: "https://120.25.210.202",
+            data: {
+              type: "teamie:mcp-app:init",
+              payload: {
+                appId: "app-1",
+                slug: "werewolf",
+                name: "狼人杀裁判台",
+                webUrl: "https://120.25.210.202:9443/",
+                token: "jwt-wide-pane",
+                expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
+                workspaceId: "ws-1",
+                conversationId: "conv-1",
+                user: { id: "u-1", displayName: "Alice" },
+              },
+            },
+          }),
+        );
+      });
+
+      expect(container.querySelector(".ww-hero-region")).not.toBeNull();
+      expect(container.querySelector(".ww-board-region")).not.toBeNull();
+      expect(container.querySelector(".ww-command-region")).not.toBeNull();
+
+      // Simulate user dragging Teamie's app pane resize handle to 760px
+      expect(resizeCallback).not.toBeNull();
+      await act(async () => {
+        resizeCallback!(
+          [{ contentRect: { width: 760, height: 800 } } as ResizeObserverEntry],
+          {} as ResizeObserver,
+        );
+      });
+
+      const dockBtn = container.querySelector(".ww-chronicle-trigger") as HTMLButtonElement;
+      await act(async () => {
+        dockBtn.click();
+      });
+
+      // Wide drawer displays both public events and historical vote tally side-by-side
+      expect(container.querySelector(".ww-chronicle-split")).not.toBeNull();
+      expect(container.querySelector(".ww-segmented")).toBeNull();
+      expect(container.textContent).toContain("第2夜降临，全体闭眼");
+      expect(container.textContent).toContain("4号 (2票·出局)");
+
+      // Shrinking back to default 400px restores compact segmented tabs
+      await act(async () => {
+        resizeCallback!(
+          [{ contentRect: { width: 400, height: 800 } } as ResizeObserverEntry],
+          {} as ResizeObserver,
+        );
+      });
+      expect(container.querySelector(".ww-chronicle-split")).toBeNull();
+      expect(container.querySelector(".ww-segmented")).not.toBeNull();
+
+      await act(async () => {
+        root.unmount();
+      });
+    } finally {
+      (globalThis as Record<string, unknown>).ResizeObserver = origResizeObserver;
+    }
+  });
 });

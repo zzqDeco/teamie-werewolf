@@ -1,6 +1,6 @@
 /* ==========================================================================
    Teamie Werewolf · Engraved Gold-Leaf Tarot & Astrolabe Roundtable (v0.2)
-   Engineered first for Teamie's 264px desktop drawer, scaling up to 440px
+   Fluid Responsive Architecture for Teamie Dynamic Pane (280px -> 400px -> 960px)
    ========================================================================== */
 
 :root {
@@ -87,11 +87,12 @@ body,
 #root {
   margin: 0;
   padding: 0;
+  width: 100%;
   height: 100%;
   background: var(--bg-page);
   color: var(--text-main);
-  font-size: 12.5px;
-  line-height: 1.45;
+  font-size: 13.5px;
+  line-height: 1.48;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -186,45 +187,43 @@ input:focus-visible {
 }
 
 /* ==========================================================================
-   Three-Tier Open Canvas Shell (264px -> 440px Container Responsive)
+   Fluid Dynamic-Width Canvas Shell (280px Compact -> 400px Default -> 960px Wide)
    ========================================================================== */
 
 .ww-shell {
-  container-type: inline-size;
+  container: ww-pane / inline-size;
   width: 100%;
-  max-width: 440px;
   height: 100vh;
   min-height: 360px;
-  margin: 0 auto;
   display: flex;
   flex-direction: column;
   position: relative;
   overflow: hidden;
   background:
-    radial-gradient(120% 200px at 50% 0%, rgba(212, 175, 99, 0.09) 0%, transparent 74%),
+    radial-gradient(120% 260px at 50% 0%, rgba(212, 175, 99, 0.09) 0%, transparent 76%),
     var(--bg-page);
 }
 
 .ww-shell.is-night {
   background:
-    radial-gradient(130% 240px at 50% 0%, rgba(130, 102, 230, 0.13) 0%, rgba(217, 75, 90, 0.06) 48%, transparent 78%),
+    radial-gradient(130% 280px at 50% 0%, rgba(130, 102, 230, 0.13) 0%, rgba(217, 75, 90, 0.06) 48%, transparent 80%),
     var(--bg-abyss);
 }
 
 .ww-shell.is-over {
   background:
-    radial-gradient(130% 240px at 50% 0%, rgba(240, 213, 144, 0.16) 0%, transparent 76%),
+    radial-gradient(130% 280px at 50% 0%, rgba(240, 213, 144, 0.16) 0%, transparent 78%),
     var(--bg-page);
 }
 
-/* 1. Slim Classical Header */
+/* 1. Classical Header */
 .ww-topbar {
   flex-shrink: 0;
-  padding: 8px 11px 7px;
+  padding: 10px clamp(12px, 3.8cqi, 24px);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 6px;
+  gap: 8px;
   background: rgba(14, 13, 20, 0.92);
   border-bottom: 1px solid var(--line-faint);
   z-index: 10;
@@ -233,11 +232,11 @@ input:focus-visible {
 .ww-phase-heading {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
   min-width: 0;
   color: var(--gold-bright);
   font-family: var(--font-serif);
-  font-size: 13.5px;
+  font-size: clamp(14px, 3.6cqi, 17px);
   font-weight: 700;
   letter-spacing: 0.04em;
 }
@@ -251,29 +250,91 @@ input:focus-visible {
 }
 
 .ww-preset-tag {
-  font-size: 11px;
+  font-size: 11.5px;
   letter-spacing: 0.03em;
   color: var(--text-muted);
-  padding: 2px 7px;
+  padding: 2.5px 9px;
   border-radius: 999px;
   border: 1px solid var(--line-faint);
-  background: rgba(255, 255, 255, 0.02);
+  background: rgba(255, 255, 255, 0.025);
   flex-shrink: 0;
 }
 
-/* 2. De-boxed Scrollable Stage */
+/* 2. Fluid Adaptive Stage: Single-Column (<660px) -> Two-Column Tabletop (>=660px) */
 .ww-stage {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 10px 10px 14px;
+  padding: clamp(11px, 3.5cqi, 22px) clamp(12px, 4cqi, 24px) 18px;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(11px, 3cqi, 16px);
+}
+
+.ww-stage > * {
+  flex-shrink: 0;
+}
+
+.ww-hero-region {
+  container: ww-hero / inline-size;
+  grid-area: hero;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 10px;
 }
 
-.ww-stage > * {
-  flex-shrink: 0;
+.ww-board-region {
+  container: ww-board / inline-size;
+  grid-area: board;
+  min-width: 0;
+  width: 100%;
+}
+
+.ww-command-region {
+  container: ww-cmd / inline-size;
+  grid-area: command;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+@container ww-pane (min-width: 660px) {
+  .ww-stage {
+    display: grid;
+    grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
+    grid-template-rows: auto 1fr;
+    grid-template-areas:
+      "board hero"
+      "board command";
+    align-items: start;
+    align-content: start;
+    gap: 16px clamp(18px, 3cqi, 28px);
+  }
+
+  .ww-narrow-only {
+    display: none;
+  }
+
+  .ww-board-region {
+    padding-right: clamp(6px, 1.8cqi, 14px);
+    border-right: 1px solid var(--line-faint);
+  }
+
+  .ww-hero-region {
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--line-faint);
+  }
+}
+
+@media (min-height: 700px) {
+  @container ww-pane (min-width: 660px) {
+    .ww-board-region {
+      position: sticky;
+      top: 0;
+    }
+  }
 }
 
 /* Engraved Filigree Section Divider */
@@ -301,15 +362,15 @@ input:focus-visible {
 .ww-tarot-showcase {
   display: flex;
   align-items: center;
-  gap: 11px;
+  gap: 12px;
   padding: 4px 2px;
   min-width: 0;
 }
 
 .ww-card-3d-scene {
-  width: 74px;
-  height: 99px;
-  perspective: 860px;
+  width: 76px;
+  height: 101px;
+  perspective: 920px;
   flex-shrink: 0;
   appearance: none;
   border: 0;
@@ -438,6 +499,57 @@ input:focus-visible {
   color: var(--gold-bright);
 }
 
+@container ww-hero (min-width: 300px) {
+  .ww-tarot-showcase {
+    gap: 15px;
+  }
+
+  .ww-card-3d-scene {
+    width: 96px;
+    height: 128px;
+  }
+
+  .ww-card-face {
+    border-radius: 9px;
+  }
+
+  .ww-arcana-latin {
+    font-size: 11.5px;
+  }
+
+  .ww-arcana-role {
+    font-size: 19px;
+  }
+
+  .ww-arcana-seat {
+    font-size: 12px;
+    padding: 1px 7px;
+  }
+
+  .ww-arcana-intel {
+    font-size: 12.5px;
+    line-height: 1.45;
+    -webkit-line-clamp: 3;
+  }
+
+  .ww-tarot-id,
+  .ww-ghost-chip {
+    font-size: 12px;
+    padding: 4px 10px;
+  }
+}
+
+@container ww-hero (min-width: 410px) {
+  .ww-card-3d-scene {
+    width: 108px;
+    height: 144px;
+  }
+
+  .ww-arcana-role {
+    font-size: 21px;
+  }
+}
+
 /* ==========================================================================
    Full-Size 3D Tarot Inspection Modal
    ========================================================================== */
@@ -452,18 +564,18 @@ input:focus-visible {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 18px;
-  gap: 12px;
+  padding: 22px;
+  gap: 14px;
   text-align: center;
 }
 
 .ww-modal-card-frame {
-  width: min(200px, 68vw);
+  width: min(300px, 68cqi, 52vh);
   aspect-ratio: 3 / 4;
-  border-radius: 11px;
+  border-radius: 12px;
   overflow: hidden;
   border: 1.5px solid var(--gold-bright);
-  box-shadow: 0 16px 42px rgba(0, 0, 0, 0.75), 0 0 24px rgba(212, 175, 99, 0.22);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.78), 0 0 28px rgba(212, 175, 99, 0.24);
   animation: wwLevitate 4s ease-in-out infinite;
 }
 
@@ -481,14 +593,14 @@ input:focus-visible {
 .ww-policy-ribbon {
   display: flex;
   align-items: flex-start;
-  gap: 7px;
-  padding: 6px 9px;
+  gap: 8px;
+  padding: 8px 11px;
   border-radius: var(--radius-sm);
-  font-size: 11.5px;
-  line-height: 1.38;
+  font-size: 12.5px;
+  line-height: 1.42;
   color: var(--text-secondary);
   background: rgba(255, 255, 255, 0.025);
-  border-left: 2px solid var(--gold);
+  border-left: 2.5px solid var(--gold);
 }
 
 .ww-policy-ribbon.locked {
@@ -512,14 +624,15 @@ input:focus-visible {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  width: 100%;
 }
 
 .ww-astrolabe-wrap {
   position: relative;
-  width: min(100%, 268px);
+  width: min(100%, 424px);
   aspect-ratio: 1 / 1;
-  margin: 0 auto 10px;
+  margin: 0 auto 12px;
   user-select: none;
 }
 
@@ -818,15 +931,16 @@ input:focus-visible {
 /* Untruncated Spotlight Inspector Bar */
 .ww-inspector-bar {
   width: 100%;
-  padding: 5px 9px;
+  max-width: 440px;
+  padding: 7px 12px;
   border-radius: var(--radius-sm);
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid var(--line-faint);
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 5px;
-  font-size: 11.5px;
+  gap: 7px;
+  font-size: 12.5px;
 }
 
 .ww-inspector-seat {
@@ -843,7 +957,107 @@ input:focus-visible {
 .ww-inspector-meta {
   color: var(--text-muted);
   margin-left: auto;
-  font-size: 11px;
+  font-size: 12px;
+}
+
+/* Fluid Medallion & Core Scaling at >=315px Board Width (Active at 400px Default & Up!) */
+@container ww-board (min-width: 315px) {
+  .ww-astrolabe-wrap {
+    margin-bottom: 16px;
+  }
+
+  .ww-astrolabe-core {
+    width: 94px;
+    height: 94px;
+    gap: 2px;
+  }
+
+  .ww-core-clock {
+    font-size: 15px;
+  }
+
+  .ww-core-cue {
+    font-size: 11px;
+    max-width: 84px;
+  }
+
+  .ww-orbit-node {
+    width: 50px;
+    height: 50px;
+  }
+
+  .is-nine .ww-orbit-node {
+    width: 44px;
+    height: 44px;
+  }
+
+  .ww-medallion-initials {
+    font-size: 15px;
+  }
+
+  .is-nine .ww-medallion-initials {
+    font-size: 13px;
+  }
+
+  .ww-seat-num-chip,
+  .ww-orbit-seer-chip,
+  .ww-orbit-flag {
+    min-width: 18px;
+    height: 18px;
+    font-size: 10.5px;
+    line-height: 18px;
+  }
+
+  .ww-orbit-name {
+    max-width: 84px;
+    font-size: 11.5px;
+    padding: 1px 6px;
+  }
+
+  .is-nine .ww-orbit-name {
+    max-width: 68px;
+    font-size: 11px;
+  }
+}
+
+@container ww-board (min-width: 385px) {
+  .ww-astrolabe-core {
+    width: 106px;
+    height: 106px;
+  }
+
+  .ww-core-clock {
+    font-size: 16.5px;
+  }
+
+  .ww-core-cue {
+    font-size: 11.5px;
+    max-width: 94px;
+  }
+
+  .ww-orbit-node {
+    width: 56px;
+    height: 56px;
+  }
+
+  .is-nine .ww-orbit-node {
+    width: 48px;
+    height: 48px;
+  }
+
+  .ww-medallion-initials {
+    font-size: 16px;
+  }
+
+  .ww-orbit-name {
+    max-width: 98px;
+    font-size: 12px;
+  }
+
+  .is-nine .ww-orbit-name {
+    max-width: 80px;
+    font-size: 11.5px;
+  }
 }
 
 /* ==========================================================================
@@ -853,7 +1067,7 @@ input:focus-visible {
 .ww-altar-pane {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
   padding: 2px 1px;
 }
 
@@ -861,35 +1075,35 @@ input:focus-visible {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 6px;
+  gap: 8px;
 }
 
 .ww-altar-heading {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
   font-family: var(--font-serif);
-  font-size: 13.5px;
+  font-size: 15px;
   font-weight: 700;
   letter-spacing: 0.03em;
   color: var(--gold-bright);
 }
 
 .ww-altar-note {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-muted);
 }
 
-/* Buttons (Single-line safe down to 240px width!) */
+/* Adaptive Buttons & Action Pairs */
 .ww-btn {
   appearance: none;
   font-family: inherit;
   border: 1px solid var(--line-gold);
   background: rgba(28, 25, 40, 0.9);
   color: var(--text-main);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
-  padding: 8px 11px;
+  padding: 9px 13px;
   border-radius: var(--radius-sm);
   cursor: pointer;
   display: inline-flex;
@@ -964,8 +1178,25 @@ input:focus-visible {
 
 .ww-btn-row {
   display: flex;
-  gap: 6px;
+  gap: 8px;
   align-items: center;
+}
+
+.ww-action-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+}
+
+@container ww-cmd (min-width: 340px) {
+  .ww-action-pair {
+    grid-template-columns: minmax(0, 1.45fr) auto;
+  }
+
+  .ww-action-pair > .ww-btn:last-child {
+    width: auto;
+    padding-inline: 14px;
+  }
 }
 
 .ww-segmented {
@@ -1004,8 +1235,8 @@ input:focus-visible {
   background: var(--bg-sunken);
   color: var(--text-main);
   border-radius: var(--radius-sm);
-  padding: 7px 9px;
-  font-size: 12px;
+  padding: 8px 11px;
+  font-size: 13px;
 }
 
 .ww-input::placeholder {
@@ -1020,18 +1251,18 @@ input:focus-visible {
   background: linear-gradient(180deg, rgba(44, 14, 21, 0.65) 0%, rgba(16, 11, 16, 0.82) 100%);
   border: 1px solid var(--crimson-line);
   border-radius: var(--radius-md);
-  padding: 8px;
+  padding: 10px 11px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 
 .ww-wolf-stream {
-  max-height: 104px;
+  max-height: 148px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 6px;
 }
 
 .ww-chat-item {
@@ -1048,16 +1279,16 @@ input:focus-visible {
 }
 
 .ww-chat-meta {
-  font-size: 10.5px;
+  font-size: 11px;
   color: #e4a3ab;
   margin-bottom: 1px;
 }
 
 .ww-chat-bubble {
-  padding: 4px 8px;
+  padding: 5px 10px;
   border-radius: 8px;
-  font-size: 11.5px;
-  line-height: 1.38;
+  font-size: 12.5px;
+  line-height: 1.42;
   background: rgba(20, 18, 30, 0.92);
   border: 1px solid rgba(217, 75, 90, 0.28);
   color: var(--text-main);
@@ -1103,21 +1334,21 @@ input:focus-visible {
 }
 
 .ww-sub-strip {
-  padding: 7px 9px;
+  padding: 9px 12px;
   border-radius: var(--radius-sm);
   background: rgba(255, 255, 255, 0.025);
   border: 1px solid var(--line-faint);
-  font-size: 11.5px;
+  font-size: 12.5px;
   color: var(--text-secondary);
 }
 
 .ww-badge {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
-  font-size: 11px;
+  gap: 4px;
+  font-size: 11.5px;
   font-weight: 600;
-  padding: 1px 7px;
+  padding: 2px 8px;
   border-radius: 999px;
   border: 1px solid var(--line-faint);
   color: var(--text-secondary);
@@ -1179,19 +1410,19 @@ input:focus-visible {
   border: 0;
   background: transparent;
   color: var(--text-secondary);
-  padding: 8px 11px;
+  padding: 9px clamp(12px, 3.8cqi, 24px);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 6px;
+  gap: 8px;
   cursor: pointer;
-  font-size: 11.5px;
+  font-size: 12.5px;
 }
 
 .ww-chronicle-latest {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1203,8 +1434,8 @@ input:focus-visible {
 .ww-chronicle-toggle-pill {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
-  font-size: 11px;
+  gap: 4px;
+  font-size: 11.5px;
   font-weight: 700;
   color: var(--gold-bright);
   flex-shrink: 0;
@@ -1212,12 +1443,35 @@ input:focus-visible {
 
 .ww-chronicle-body {
   border-top: 1px solid var(--line-faint);
-  padding: 8px 10px 10px;
+  padding: 10px clamp(12px, 3.8cqi, 24px) 12px;
   background: var(--bg-abyss);
-  max-height: 220px;
+  max-height: 250px;
   display: flex;
   flex-direction: column;
-  gap: 7px;
+  gap: 8px;
+}
+
+.ww-chronicle-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px;
+  min-height: 0;
+}
+
+.ww-chronicle-col {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ww-chronicle-col-title {
+  font-family: var(--font-serif);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--gold-bright);
+  letter-spacing: 0.03em;
 }
 
 .ww-chronicle-list {
@@ -1227,7 +1481,7 @@ input:focus-visible {
   display: flex;
   flex-direction: column;
   gap: 5px;
-  max-height: 165px;
+  max-height: 185px;
 }
 
 .ww-chronicle-list > * {
@@ -1235,15 +1489,15 @@ input:focus-visible {
 }
 
 .ww-event-row {
-  padding: 5px 8px;
+  padding: 6px 10px;
   border-radius: 6px;
   background: rgba(255, 255, 255, 0.025);
   border: 1px solid var(--line-faint);
-  font-size: 11.5px;
+  font-size: 12px;
   color: var(--text-secondary);
   display: flex;
   align-items: baseline;
-  gap: 6px;
+  gap: 7px;
 }
 
 .ww-event-tag {
@@ -1306,12 +1560,12 @@ input:focus-visible {
 }
 
 .ww-wait-tarot {
-  width: 136px;
+  width: clamp(148px, 38cqi, 210px);
   aspect-ratio: 3 / 4;
-  border-radius: 10px;
+  border-radius: 12px;
   overflow: hidden;
   border: 1px solid var(--line-bright);
-  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.7), 0 0 22px rgba(212, 175, 99, 0.16);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.72), 0 0 24px rgba(212, 175, 99, 0.18);
   animation: wwLevitate 4.2s ease-in-out infinite;
 }
 
@@ -1323,7 +1577,7 @@ input:focus-visible {
 }
 
 /* ==========================================================================
-   /dev Multi-Perspective Tarot Workbench (Includes 264px Real-Width Toggle!)
+   /dev Multi-Perspective Tarot Workbench (Dynamic 280px -> 960px Resizer!)
    ========================================================================== */
 
 .dev-shell {
@@ -1347,16 +1601,33 @@ input:focus-visible {
   border-radius: 12px;
 }
 
+.dev-width-slider {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-sunken);
+  border: 1px solid var(--line-faint);
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.dev-width-slider input[type="range"] {
+  width: 110px;
+  accent-color: var(--gold);
+  cursor: pointer;
+}
+
 .dev-frames-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(268px, 1fr));
-  gap: 14px;
+  gap: 16px;
+  justify-content: center;
   justify-items: center;
 }
 
 .dev-frame-wrap {
   width: 100%;
-  max-width: 360px;
   background: var(--bg-elevated);
   border: 1px solid var(--line-gold);
   border-radius: 12px;
@@ -1366,26 +1637,21 @@ input:focus-visible {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
 }
 
-.dev-frame-wrap.exact-host-width {
-  width: 264px;
-  max-width: 264px;
-}
-
 .dev-frame-header {
-  padding: 7px 11px;
+  padding: 8px 12px;
   background: var(--bg-page);
   border-bottom: 1px solid var(--line-faint);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 700;
   color: var(--gold-bright);
 }
 
 .dev-iframe {
   width: 100%;
-  height: 640px;
+  height: 700px;
   border: 0;
   background: var(--bg-page);
 }
