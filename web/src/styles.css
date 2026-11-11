@@ -300,6 +300,24 @@ input:focus-visible {
   gap: 12px;
 }
 
+/* Engraved Filigree Section Divider */
+.ww-filigree-rule {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: rgba(212, 175, 99, 0.48);
+  font-size: 10px;
+  user-select: none;
+}
+
+.ww-filigree-rule::before,
+.ww-filigree-rule::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(212, 175, 99, 0.26), transparent);
+}
+
 @container ww-pane (min-width: 660px) {
   .ww-stage {
     display: grid;
@@ -313,7 +331,8 @@ input:focus-visible {
     gap: 16px clamp(18px, 3cqi, 28px);
   }
 
-  .ww-narrow-only {
+  .ww-stage > .ww-narrow-only,
+  .ww-filigree-rule.ww-narrow-only {
     display: none;
   }
 
@@ -335,24 +354,6 @@ input:focus-visible {
       top: 0;
     }
   }
-}
-
-/* Engraved Filigree Section Divider */
-.ww-filigree-rule {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: rgba(212, 175, 99, 0.48);
-  font-size: 10px;
-  user-select: none;
-}
-
-.ww-filigree-rule::before,
-.ww-filigree-rule::after {
-  content: "";
-  flex: 1;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(212, 175, 99, 0.26), transparent);
 }
 
 /* ==========================================================================
@@ -1196,6 +1197,7 @@ input:focus-visible {
   .ww-action-pair > .ww-btn:last-child {
     width: auto;
     padding-inline: 14px;
+    white-space: nowrap;
   }
 }
 
