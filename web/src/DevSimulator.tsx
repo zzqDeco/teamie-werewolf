@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { WerewolfEmblem } from "./icons";
+import { TAROT_BACK_IMAGE } from "./tarotArt";
 import type { Preset } from "./types";
 
 interface DevPlayerSession {
@@ -25,6 +25,7 @@ interface DevTokensResponse {
  */
 export function DevSimulator() {
   const [preset, setPreset] = useState<Preset>("6p");
+  const [exactHostWidth, setExactHostWidth] = useState(true);
   const [convId, setConvId] = useState("00000000-0000-4000-8000-devconvroom001");
   const [data, setData] = useState<DevTokensResponse | null>(null);
   const [error, setError] = useState("");
@@ -130,22 +131,46 @@ export function DevSimulator() {
   return (
     <div className="dev-shell">
       <header className="dev-toolbar">
-        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          <div className="ww-emblem-medallion">
-            <WerewolfEmblem className="ww-emblem-svg" />
-          </div>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <img
+            src={TAROT_BACK_IMAGE}
+            alt="塔罗牌背"
+            style={{
+              width: "34px",
+              height: "46px",
+              borderRadius: "5px",
+              objectFit: "cover",
+              border: "1px solid var(--line-bright)",
+              boxShadow: "0 4px 12px rgba(0, 0, 0, 0.55)",
+              flexShrink: 0,
+            }}
+          />
           <div>
-            <strong style={{ fontSize: "15px", color: "var(--gold-bright)" }}>
-              狼人杀裁判台 · 多视角暗金迷雾联调台（/dev）
+            <strong
+              style={{
+                fontFamily: "var(--font-serif)",
+                fontSize: "16px",
+                letterSpacing: "0.04em",
+                color: "var(--gold-bright)",
+              }}
+            >
+              狼人杀裁判台 · 黑金版画塔罗 & 圆桌星盘联调台（/dev）
             </strong>
             <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>
-              房间 ID：<code>{convId}</code> · 每个抽屉均为真实{" "}
-              <code>&lt;iframe sandbox&gt;</code> + <code>postMessage</code> 注入独立 HS256 Token
+              房间 ID：<code>{convId}</code> · 当前视口：
+              <b>{exactHostWidth ? "264px（Teamie 真实群聊右侧栏宽度）" : "360px（宽屏抽屉）"}</b>
             </div>
           </div>
         </div>
 
         <div className="ww-btn-row" style={{ flexWrap: "wrap" }}>
+          <button
+            type="button"
+            className={`ww-btn ${exactHostWidth ? "ww-btn-active" : ""}`}
+            onClick={() => setExactHostWidth((v) => !v)}
+          >
+            {exactHostWidth ? "视口：264px 真实侧栏" : "视口：360px 宽屏"}
+          </button>
           <button
             type="button"
             className={`ww-btn ${preset === "6p" ? "ww-btn-active" : ""}`}
@@ -195,9 +220,19 @@ export function DevSimulator() {
       )}
 
       {data && (
-        <div className="dev-frames-grid">
+        <div
+          className="dev-frames-grid"
+          style={
+            exactHostWidth
+              ? { gridTemplateColumns: "repeat(auto-fill, minmax(264px, 264px))", justifyContent: "center" }
+              : undefined
+          }
+        >
           {data.players.map((p) => (
-            <div key={`${convId}-${p.slot}`} className="dev-frame-wrap">
+            <div
+              key={`${convId}-${p.slot}`}
+              className={`dev-frame-wrap ${exactHostWidth ? "exact-host-width" : ""}`}
+            >
               <div className="dev-frame-header">
                 <span>
                   视角 #{p.slot} · {p.displayName}

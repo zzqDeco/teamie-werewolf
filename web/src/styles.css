@@ -1,66 +1,62 @@
 /* ==========================================================================
-   Teamie Werewolf · Dark Gothic Tarot Theme (Scheme B)
-   Optimized for 320px–380px narrow group-chat drawer (min-height 360px)
+   Teamie Werewolf · Engraved Gold-Leaf Tarot & Astrolabe Roundtable (v0.2)
+   Engineered first for Teamie's 264px desktop drawer, scaling up to 440px
    ========================================================================== */
 
 :root {
   color-scheme: dark;
 
-  /* Obsidian & Velvet Surfaces */
-  --bg-abyss: #0d0c13;
-  --bg-page: #111018;
-  --bg-card: #191724;
-  --bg-card-elevated: #201d2e;
-  --bg-sunken: #13111c;
-  --bg-glass: rgba(25, 23, 36, 0.92);
+  /* Deep Matte Obsidian & Charcoal Parchment */
+  --bg-abyss: #0a090f;
+  --bg-page: #0e0d14;
+  --bg-elevated: #161420;
+  --bg-panel: rgba(23, 20, 33, 0.78);
+  --bg-sunken: rgba(10, 9, 15, 0.72);
 
-  /* Parchment & Warm Taupe Typography */
-  --text-main: #f3ead8;
-  --text-secondary: #d7ccb8;
-  --text-muted: #a99c86;
-  --text-faint: #786d5c;
+  /* Classical Parchment & Taupe Ink */
+  --text-main: #f4ebd9;
+  --text-secondary: #d7cab4;
+  --text-muted: #9f927c;
+  --text-faint: #6e6454;
 
-  /* Burnished Brass & Tarot Gold Accents */
+  /* Engraved Antique Gold Leaf */
   --gold: #d4af63;
-  --gold-bright: #ecd08b;
-  --gold-deep: #9c7b38;
-  --gold-soft: rgba(212, 175, 99, 0.14);
+  --gold-bright: #f0d590;
+  --gold-deep: #8f6e2c;
+  --gold-soft: rgba(212, 175, 99, 0.13);
   --gold-soft-strong: rgba(212, 175, 99, 0.24);
-  --gold-fg: #14110c;
+  --gold-fg: #130f08;
 
-  /* Borders & Filigree */
-  --border: rgba(212, 175, 99, 0.16);
-  --border-strong: rgba(212, 175, 99, 0.36);
-  --border-bright: rgba(236, 208, 139, 0.68);
-  --border-subtle: rgba(255, 255, 255, 0.06);
+  /* Hairline Filigree Borders */
+  --line-faint: rgba(212, 175, 99, 0.14);
+  --line-gold: rgba(212, 175, 99, 0.34);
+  --line-bright: rgba(240, 213, 144, 0.68);
 
-  /* Semantic Factions & Potions */
-  --crimson: #e05363;
-  --crimson-hover: #ec6675;
-  --crimson-soft: rgba(224, 83, 99, 0.15);
-  --crimson-border: rgba(224, 83, 99, 0.42);
+  /* Faction Accents */
+  --crimson: #d94b5a;
+  --crimson-soft: rgba(217, 75, 90, 0.16);
+  --crimson-line: rgba(217, 75, 90, 0.46);
 
   --emerald: #62c48c;
   --emerald-soft: rgba(98, 196, 140, 0.15);
-  --emerald-border: rgba(98, 196, 140, 0.4);
+  --emerald-line: rgba(98, 196, 140, 0.42);
 
-  --celestial: #9f8ef4;
-  --celestial-soft: rgba(159, 142, 244, 0.16);
-  --celestial-border: rgba(159, 142, 244, 0.42);
+  --celestial: #a393f5;
+  --celestial-soft: rgba(163, 147, 245, 0.16);
+  --celestial-line: rgba(163, 147, 245, 0.42);
 
-  --amber: #e29c45;
-  --amber-soft: rgba(226, 156, 69, 0.16);
-  --amber-border: rgba(226, 156, 69, 0.42);
+  /* Classical Serif + Clean Sans Typography */
+  --font-serif:
+    "Cormorant Garamond",
+    "Baskerville",
+    "Palatino Linotype",
+    "Georgia",
+    "Songti SC",
+    "STSong",
+    "Noto Serif SC",
+    serif;
 
-  /* Shadows & Radii */
-  --shadow-card: 0 6px 20px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255, 244, 214, 0.04);
-  --shadow-gold-glow: 0 0 0 1px rgba(212, 175, 99, 0.35), 0 6px 18px rgba(212, 175, 99, 0.14);
-  --shadow-crimson-glow: 0 0 0 1px rgba(224, 83, 99, 0.45), 0 6px 18px rgba(224, 83, 99, 0.18);
-  --radius-lg: 14px;
-  --radius-md: 11px;
-  --radius-sm: 8px;
-
-  font-family:
+  --font-sans:
     "DM Sans",
     -apple-system,
     BlinkMacSystemFont,
@@ -68,6 +64,18 @@
     "Hiragino Sans GB",
     "Microsoft YaHei",
     sans-serif;
+
+  --font-mono:
+    "JetBrains Mono",
+    "SFMono-Regular",
+    ui-monospace,
+    Menlo,
+    monospace;
+
+  --radius-md: 10px;
+  --radius-sm: 7px;
+
+  font-family: var(--font-sans);
 }
 
 * {
@@ -82,15 +90,14 @@ body,
   height: 100%;
   background: var(--bg-page);
   color: var(--text-main);
-  font-size: 13px;
+  font-size: 12.5px;
   line-height: 1.45;
   -webkit-font-smoothing: antialiased;
 }
 
-/* Subtle Custom Scrollbars */
 *::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
+  width: 4px;
+  height: 4px;
 }
 
 *::-webkit-scrollbar-track {
@@ -98,87 +105,94 @@ body,
 }
 
 *::-webkit-scrollbar-thumb {
-  background: rgba(212, 175, 99, 0.24);
+  background: rgba(212, 175, 99, 0.25);
   border-radius: 999px;
-}
-
-*::-webkit-scrollbar-thumb:hover {
-  background: rgba(212, 175, 99, 0.42);
 }
 
 button:focus-visible,
 input:focus-visible {
-  outline: 2px solid var(--gold);
-  outline-offset: 1px;
+  outline: 1.5px solid var(--gold-bright);
+  outline-offset: 2px;
 }
 
-/* Animations */
-@keyframes wwPulseHalo {
+.ww-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.ww-mini-svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+/* ==========================================================================
+   Keyframe Animations
+   ========================================================================== */
+
+@keyframes wwLevitate {
   0%,
   100% {
-    box-shadow: 0 0 0 0 rgba(212, 175, 99, 0.42);
+    transform: translateY(0px);
   }
   50% {
-    box-shadow: 0 0 0 5px rgba(212, 175, 99, 0);
+    transform: translateY(-5px);
   }
 }
 
-@keyframes wwUrgentPulse {
+@keyframes wwSpeakHalo {
   0%,
   100% {
-    opacity: 1;
+    box-shadow: 0 0 0 2px var(--gold-bright), 0 0 12px rgba(240, 213, 144, 0.45);
   }
   50% {
-    opacity: 0.65;
+    box-shadow: 0 0 0 4px rgba(240, 213, 144, 0.2), 0 0 20px rgba(240, 213, 144, 0.2);
   }
 }
 
-@keyframes wwEq1 {
+@keyframes wwEqMini1 {
   0%,
   100% {
-    height: 4px;
+    height: 3px;
   }
   50% {
-    height: 12px;
+    height: 9px;
   }
 }
-
-@keyframes wwEq2 {
+@keyframes wwEqMini2 {
   0%,
   100% {
-    height: 11px;
+    height: 8px;
   }
   50% {
-    height: 4px;
+    height: 3px;
   }
 }
-
-@keyframes wwEq3 {
+@keyframes wwEqMini3 {
   0%,
   100% {
-    height: 6px;
+    height: 5px;
   }
   50% {
-    height: 13px;
-  }
-}
-
-@keyframes wwSpinSlow {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
+    height: 10px;
   }
 }
 
 /* ==========================================================================
-   Three-Tier App Shell
+   Three-Tier Open Canvas Shell (264px -> 440px Container Responsive)
    ========================================================================== */
 
 .ww-shell {
+  container-type: inline-size;
   width: 100%;
-  max-width: 460px;
+  max-width: 440px;
   height: 100vh;
   min-height: 360px;
   margin: 0 auto;
@@ -187,627 +201,690 @@ input:focus-visible {
   position: relative;
   overflow: hidden;
   background:
-    radial-gradient(120% 180px at 50% 0%, rgba(212, 175, 99, 0.09) 0%, transparent 72%),
+    radial-gradient(120% 200px at 50% 0%, rgba(212, 175, 99, 0.09) 0%, transparent 74%),
     var(--bg-page);
-  transition: background 0.35s ease;
 }
 
 .ww-shell.is-night {
   background:
-    radial-gradient(130% 210px at 50% 0%, rgba(124, 58, 237, 0.14) 0%, rgba(224, 83, 99, 0.06) 45%, transparent 78%),
+    radial-gradient(130% 240px at 50% 0%, rgba(130, 102, 230, 0.13) 0%, rgba(217, 75, 90, 0.06) 48%, transparent 78%),
     var(--bg-abyss);
 }
 
 .ww-shell.is-over {
   background:
-    radial-gradient(130% 220px at 50% 0%, rgba(212, 175, 99, 0.18) 0%, transparent 75%),
+    radial-gradient(130% 240px at 50% 0%, rgba(240, 213, 144, 0.16) 0%, transparent 76%),
     var(--bg-page);
 }
 
-/* 1. Sticky Ornate Header */
+/* 1. Slim Classical Header */
 .ww-topbar {
   flex-shrink: 0;
-  background: linear-gradient(180deg, rgba(32, 29, 46, 0.96) 0%, rgba(22, 20, 32, 0.96) 100%);
-  border-bottom: 1px solid var(--border);
-  z-index: 10;
-}
-
-.ww-topbar-inner {
-  padding: 9px 12px 8px;
+  padding: 8px 11px 7px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 6px;
+  background: rgba(14, 13, 20, 0.92);
+  border-bottom: 1px solid var(--line-faint);
+  z-index: 10;
 }
 
-.ww-phase-crest {
+.ww-phase-heading {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 10px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  background: var(--gold-soft);
+  min-width: 0;
   color: var(--gold-bright);
-  border: 1px solid var(--border-strong);
+  font-family: var(--font-serif);
+  font-size: 13.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
 }
 
-.ww-phase-crest.night {
-  background: var(--celestial-soft);
-  color: #cdc3ff;
-  border-color: var(--celestial-border);
+.ww-phase-heading.night {
+  color: #d6cdff;
 }
 
-.ww-phase-crest.over {
-  background: var(--emerald-soft);
-  color: #96e6b6;
-  border-color: var(--emerald-border);
+.ww-phase-heading.over {
+  color: #9be8bd;
 }
 
-.ww-phase-icon {
-  width: 14px;
-  height: 14px;
-  flex-shrink: 0;
-}
-
-.ww-topbar-meta {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.ww-preset-pill {
-  font-size: 11.5px;
+.ww-preset-tag {
+  font-size: 11px;
+  letter-spacing: 0.03em;
   color: var(--text-muted);
   padding: 2px 7px;
   border-radius: 999px;
-  background: var(--bg-sunken);
-  border: 1px solid var(--border-subtle);
+  border: 1px solid var(--line-faint);
+  background: rgba(255, 255, 255, 0.02);
+  flex-shrink: 0;
 }
 
-.ww-timer-pill {
-  font-variant-numeric: tabular-nums;
-  font-family: "JetBrains Mono", "SFMono-Regular", ui-monospace, Menlo, monospace;
-  font-size: 11.5px;
-  font-weight: 700;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: var(--bg-sunken);
-  color: var(--gold-bright);
-  border: 1px solid var(--border);
-}
-
-.ww-timer-pill.urgent {
-  background: var(--crimson-soft);
-  color: #ff8f9b;
-  border-color: var(--crimson-border);
-  animation: wwUrgentPulse 1s ease-in-out infinite;
-}
-
-.ww-countdown-track {
-  width: 100%;
-  height: 3px;
-  background: rgba(255, 255, 255, 0.05);
-  overflow: hidden;
-}
-
-.ww-countdown-fill {
-  height: 100%;
-  background: linear-gradient(90deg, var(--gold-deep), var(--gold-bright));
-  transition: width 0.45s linear, background 0.25s ease;
-}
-
-.ww-countdown-fill.urgent {
-  background: linear-gradient(90deg, #9f1239, var(--crimson));
-}
-
-/* 2. Scrollable Center Stage */
+/* 2. De-boxed Scrollable Stage */
 .ww-stage {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 10px 11px 14px;
+  padding: 10px 10px 14px;
   display: flex;
   flex-direction: column;
-  gap: 9px;
+  gap: 10px;
 }
 
 .ww-stage > * {
   flex-shrink: 0;
 }
 
+/* Engraved Filigree Section Divider */
+.ww-filigree-rule {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: rgba(212, 175, 99, 0.48);
+  font-size: 10px;
+  user-select: none;
+}
+
+.ww-filigree-rule::before,
+.ww-filigree-rule::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(212, 175, 99, 0.26), transparent);
+}
+
 /* ==========================================================================
-   Tarot Secret Identity Plaque
+   True 3D Flipping Engraved Tarot Identity Showcase
    ========================================================================== */
 
-.ww-tarot-id {
-  width: 100%;
+.ww-tarot-showcase {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 4px 2px;
+  min-width: 0;
+}
+
+.ww-card-3d-scene {
+  width: 74px;
+  height: 99px;
+  perspective: 860px;
   flex-shrink: 0;
   appearance: none;
-  text-align: left;
+  border: 0;
+  padding: 0;
+  background: transparent;
   cursor: pointer;
-  border-radius: var(--radius-md);
-  padding: 9px 11px;
-  background:
-    linear-gradient(135deg, rgba(212, 175, 99, 0.14) 0%, rgba(25, 23, 36, 0.96) 58%),
-    var(--bg-card);
-  border: 1px solid var(--border-strong);
-  box-shadow: var(--shadow-card);
-  color: var(--text-main);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+}
+
+.ww-card-3d-inner {
+  width: 100%;
+  height: 100%;
   position: relative;
-  overflow: hidden;
-  transition: border-color 0.2s ease, transform 0.15s ease;
+  transform-style: preserve-3d;
+  transition: transform 0.68s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.ww-tarot-id:hover {
-  border-color: var(--border-bright);
+.ww-card-3d-inner.is-flipped {
+  transform: rotateY(180deg);
 }
 
-.ww-tarot-id.role-WEREWOLF {
-  background:
-    linear-gradient(135deg, rgba(224, 83, 99, 0.2) 0%, rgba(25, 23, 36, 0.96) 62%),
-    var(--bg-card);
-  border-color: var(--crimson-border);
-}
-
-.ww-tarot-id.role-SEER {
-  background:
-    linear-gradient(135deg, rgba(159, 142, 244, 0.22) 0%, rgba(25, 23, 36, 0.96) 62%),
-    var(--bg-card);
-  border-color: var(--celestial-border);
-}
-
-.ww-tarot-id.role-WITCH {
-  background:
-    linear-gradient(135deg, rgba(98, 196, 140, 0.2) 0%, rgba(25, 23, 36, 0.96) 62%),
-    var(--bg-card);
-  border-color: var(--emerald-border);
-}
-
-.ww-tarot-id.role-HUNTER {
-  background:
-    linear-gradient(135deg, rgba(226, 156, 69, 0.22) 0%, rgba(25, 23, 36, 0.96) 62%),
-    var(--bg-card);
-  border-color: var(--amber-border);
-}
-
-.ww-tarot-id.is-concealed {
-  background:
-    repeating-linear-gradient(
-      -45deg,
-      rgba(212, 175, 99, 0.04),
-      rgba(212, 175, 99, 0.04) 6px,
-      rgba(25, 23, 36, 0.95) 6px,
-      rgba(25, 23, 36, 0.95) 12px
-    ),
-    var(--bg-card);
-  border-color: var(--border);
-}
-
-.ww-id-left {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-}
-
-.ww-emblem-medallion {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  background: rgba(13, 12, 19, 0.72);
-  border: 1px solid var(--border-strong);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  color: var(--gold-bright);
-}
-
-.role-WEREWOLF .ww-emblem-medallion {
-  color: var(--crimson);
-  border-color: var(--crimson-border);
-}
-
-.role-SEER .ww-emblem-medallion {
-  color: var(--celestial);
-  border-color: var(--celestial-border);
-}
-
-.role-WITCH .ww-emblem-medallion {
-  color: var(--emerald);
-  border-color: var(--emerald-border);
-}
-
-.role-HUNTER .ww-emblem-medallion {
-  color: var(--amber);
-  border-color: var(--amber-border);
-}
-
-.ww-emblem-svg {
-  width: 20px;
-  height: 20px;
-}
-
-.ww-id-copy {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-
-.ww-id-title {
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--text-main);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.ww-id-sub {
-  font-size: 11.5px;
-  color: var(--text-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.ww-id-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 8px;
+.ww-card-face {
+  position: absolute;
+  inset: 0;
   border-radius: 7px;
-  font-size: 11.5px;
-  font-weight: 600;
-  color: var(--gold-bright);
-  background: rgba(13, 12, 19, 0.65);
-  border: 1px solid var(--border);
-  flex-shrink: 0;
+  overflow: hidden;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  border: 1px solid var(--line-gold);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.55);
+  background: #0e0d14;
 }
 
-/* Unseated / Lobby Identity Strip */
-.ww-lobby-id-strip {
-  border-radius: var(--radius-md);
-  padding: 8px 11px;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+.ww-card-face.card-back {
+  transform: rotateY(180deg);
 }
 
-/* ==========================================================================
-   Public Chat Discipline Banner
-   ========================================================================== */
-
-.ww-policy-strip {
-  border-radius: var(--radius-sm);
-  padding: 7px 10px;
-  font-size: 12px;
-  line-height: 1.4;
-  background: var(--bg-sunken);
-  border: 1px solid var(--border);
-  color: var(--text-secondary);
-  display: flex;
-  align-items: flex-start;
-  gap: 7px;
-}
-
-.ww-policy-strip.locked {
-  background: rgba(224, 83, 99, 0.1);
-  border-color: var(--crimson-border);
-  color: #f9b4bc;
-}
-
-.ww-policy-strip.my-mic {
-  background: rgba(98, 196, 140, 0.12);
-  border-color: var(--emerald-border);
-  color: #abefc8;
-  font-weight: 600;
-}
-
-.ww-policy-strip.wait-mic {
-  background: rgba(212, 175, 99, 0.1);
-  border-color: var(--border-strong);
-  color: var(--gold-bright);
-}
-
-/* ==========================================================================
-   2-Column Interactive Tarot Seat Grid
-   ========================================================================== */
-
-.ww-block-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 6px;
-  padding: 0 2px;
-  margin-bottom: 5px;
-}
-
-.ww-block-title {
-  font-size: 11.5px;
-  font-weight: 700;
-  letter-spacing: 0.03em;
-  color: var(--text-muted);
-}
-
-.ww-block-hint {
-  font-size: 11.5px;
-  font-weight: 600;
-  color: var(--gold-bright);
-}
-
-.ww-seats-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 7px;
-}
-
-.ww-seat-card {
-  appearance: none;
+.ww-card-face img {
   width: 100%;
-  text-align: left;
-  font-family: inherit;
-  color: var(--text-main);
-  background: linear-gradient(180deg, var(--bg-card-elevated) 0%, var(--bg-card) 100%);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: 8px 9px;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.ww-arcana-info {
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  min-width: 0;
-  position: relative;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
-  transition: transform 0.14s ease, border-color 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
-}
-
-.ww-seat-card.can-select {
-  cursor: pointer;
-}
-
-.ww-seat-card.can-select:hover {
-  border-color: var(--border-bright);
-  transform: translateY(-1px);
-}
-
-.ww-seat-card.is-me {
-  border-color: rgba(212, 175, 99, 0.42);
-}
-
-.ww-seat-card.is-speaking {
-  border-color: var(--gold-bright);
-  animation: wwPulseHalo 1.8s infinite;
-}
-
-.ww-seat-card.is-selected {
-  background: linear-gradient(180deg, rgba(212, 175, 99, 0.22) 0%, rgba(25, 23, 36, 0.96) 100%);
-  border-color: var(--gold-bright);
-  box-shadow: var(--shadow-gold-glow);
-}
-
-.ww-seat-card.is-selected.danger-aim {
-  background: linear-gradient(180deg, rgba(224, 83, 99, 0.22) 0%, rgba(25, 23, 36, 0.96) 100%);
-  border-color: var(--crimson);
-  box-shadow: var(--shadow-crimson-glow);
-}
-
-.ww-seat-card.is-dead {
-  opacity: 0.46;
-  background: var(--bg-sunken);
-  border-style: dashed;
-}
-
-.ww-seat-card.is-empty-slot {
-  opacity: 0.45;
-  background: rgba(19, 17, 28, 0.55);
-  border: 1px dashed var(--border);
-  justify-content: center;
-  min-height: 56px;
-}
-
-.ww-seat-row-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 6px;
-  min-width: 0;
-}
-
-.ww-seat-identity {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  min-width: 0;
-}
-
-.ww-seat-seal {
-  width: 24px;
-  height: 24px;
-  border-radius: 999px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 11.5px;
-  font-weight: 800;
-  color: #fff;
-  flex-shrink: 0;
-  border: 1px solid rgba(255, 255, 255, 0.24);
-  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.2);
-}
-
-.ww-seat-title {
-  font-size: 12.5px;
-  font-weight: 600;
-  color: var(--text-main);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.ww-eq-bars {
-  display: inline-flex;
-  align-items: flex-end;
-  gap: 2px;
-  height: 13px;
-  padding: 0 2px;
-  flex-shrink: 0;
-}
-
-.ww-eq-bar {
-  width: 2.5px;
-  border-radius: 999px;
-  background: var(--gold-bright);
-}
-
-.ww-eq-bar.b1 {
-  animation: wwEq1 0.7s ease-in-out infinite;
-}
-.ww-eq-bar.b2 {
-  animation: wwEq2 0.58s ease-in-out infinite;
-}
-.ww-eq-bar.b3 {
-  animation: wwEq3 0.82s ease-in-out infinite;
-}
-
-.ww-seat-row-bottom {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 4px;
-  min-height: 18px;
-}
-
-.ww-seat-status {
-  font-size: 11.5px;
-  color: var(--text-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.ww-badge {
-  display: inline-flex;
-  align-items: center;
   gap: 3px;
-  font-size: 11px;
-  font-weight: 700;
-  padding: 1px 6px;
-  border-radius: 5px;
-  background: var(--bg-sunken);
-  color: var(--text-secondary);
-  border: 1px solid var(--border);
-  flex-shrink: 0;
 }
 
-.ww-badge.gold {
-  background: var(--gold-soft-strong);
-  color: var(--gold-bright);
-  border-color: var(--border-strong);
+.ww-arcana-latin {
+  font-family: var(--font-serif);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  color: var(--gold);
+  text-transform: uppercase;
 }
 
-.ww-badge.wolf {
-  background: var(--crimson-soft);
-  color: #ff98a4;
-  border-color: var(--crimson-border);
-}
-
-.ww-badge.good {
-  background: var(--celestial-soft);
-  color: #cec4ff;
-  border-color: var(--celestial-border);
-}
-
-.ww-badge.aim-danger {
-  background: var(--crimson);
-  color: #fff;
-  border-color: var(--crimson);
-}
-
-.ww-badge.aim-gold {
-  background: var(--gold);
-  color: var(--gold-fg);
-  border-color: var(--gold-bright);
-}
-
-/* ==========================================================================
-   Action Altar Cards & Controls
-   ========================================================================== */
-
-.ww-altar {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 11px;
-  box-shadow: var(--shadow-card);
+.ww-arcana-title-row {
   display: flex;
-  flex-direction: column;
-  gap: 9px;
-}
-
-.ww-altar.danger-altar {
-  border-color: var(--crimson-border);
-  background: linear-gradient(180deg, rgba(52, 20, 27, 0.55) 0%, var(--bg-card) 100%);
-}
-
-.ww-altar.victory-altar {
-  border-color: var(--border-bright);
-  background: linear-gradient(180deg, rgba(212, 175, 99, 0.16) 0%, var(--bg-card) 100%);
-}
-
-.ww-altar-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  align-items: baseline;
+  gap: 6px;
   flex-wrap: wrap;
 }
 
-.ww-altar-title {
-  display: inline-flex;
+.ww-arcana-role {
+  font-family: var(--font-serif);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--text-main);
+}
+
+.ww-arcana-role.is-wolf {
+  color: #f48692;
+}
+
+.ww-arcana-seat {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--gold-bright);
+  padding: 0 5px;
+  border-radius: 4px;
+  background: var(--gold-soft);
+}
+
+.ww-arcana-intel {
+  font-size: 11.5px;
+  line-height: 1.38;
+  color: var(--text-muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.ww-arcana-actions {
+  display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 12.5px;
+  margin-top: 3px;
+}
+
+.ww-tarot-id,
+.ww-ghost-chip {
+  appearance: none;
+  font-family: inherit;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--line-faint);
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.ww-tarot-id:hover,
+.ww-ghost-chip:hover {
+  border-color: var(--line-gold);
+  color: var(--gold-bright);
+}
+
+/* ==========================================================================
+   Full-Size 3D Tarot Inspection Modal
+   ========================================================================== */
+
+.ww-tarot-modal {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  background: rgba(8, 7, 13, 0.86);
+  backdrop-filter: blur(6px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  gap: 12px;
+  text-align: center;
+}
+
+.ww-modal-card-frame {
+  width: min(200px, 68vw);
+  aspect-ratio: 3 / 4;
+  border-radius: 11px;
+  overflow: hidden;
+  border: 1.5px solid var(--gold-bright);
+  box-shadow: 0 16px 42px rgba(0, 0, 0, 0.75), 0 0 24px rgba(212, 175, 99, 0.22);
+  animation: wwLevitate 4s ease-in-out infinite;
+}
+
+.ww-modal-card-frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* ==========================================================================
+   Compact Public Chat Discipline Ribbon
+   ========================================================================== */
+
+.ww-policy-ribbon {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  padding: 6px 9px;
+  border-radius: var(--radius-sm);
+  font-size: 11.5px;
+  line-height: 1.38;
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.025);
+  border-left: 2px solid var(--gold);
+}
+
+.ww-policy-ribbon.locked {
+  background: rgba(217, 75, 90, 0.08);
+  border-left-color: var(--crimson);
+  color: #f3b2b9;
+}
+
+.ww-policy-ribbon.my-mic {
+  background: rgba(98, 196, 140, 0.1);
+  border-left-color: var(--emerald);
+  color: #b4f0ce;
+  font-weight: 600;
+}
+
+/* ==========================================================================
+   Arcane Roundtable Astrolabe Theater
+   ========================================================================== */
+
+.ww-arena-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.ww-astrolabe-wrap {
+  position: relative;
+  width: min(100%, 268px);
+  aspect-ratio: 1 / 1;
+  margin: 0 auto 10px;
+  user-select: none;
+}
+
+.ww-astrolabe-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* Center Core Dial */
+.ww-astrolabe-core {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 78px;
+  height: 78px;
+  border-radius: 999px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  pointer-events: none;
+  gap: 1px;
+}
+
+.ww-core-icon {
+  color: var(--gold);
+  display: flex;
+}
+
+.ww-astrolabe-core.is-urgent .ww-core-icon,
+.ww-astrolabe-core.is-urgent .ww-core-clock {
+  color: #ff8593;
+}
+
+.ww-core-clock {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.15;
+  color: var(--gold-bright);
+}
+
+.ww-core-cue {
+  font-size: 10px;
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
+  max-width: 68px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Radial Seat Nodes: node box equals medallion so center aligns 1:1 with SVG orbit */
+.ww-orbit-node {
+  position: absolute;
+  width: 40px;
+  height: 40px;
+  transform: translate(-50%, -50%);
+  appearance: none;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  font-family: inherit;
+  color: var(--text-main);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 3;
+}
+
+.is-nine .ww-orbit-node {
+  width: 34px;
+  height: 34px;
+}
+
+.ww-orbit-node.can-select {
+  cursor: pointer;
+}
+
+.ww-orbit-medallion {
+  width: 100%;
+  height: 100%;
+  border-radius: 999px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid var(--line-gold);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.55);
+  transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.ww-orbit-node.can-select:hover .ww-orbit-medallion {
+  transform: scale(1.08);
+  border-color: var(--gold-bright);
+}
+
+.ww-orbit-node.is-me .ww-orbit-medallion {
+  border-color: var(--gold-bright);
+}
+
+.ww-orbit-node.is-inspected .ww-orbit-medallion {
+  border-color: var(--gold-bright);
+  box-shadow: 0 0 0 2px rgba(240, 213, 144, 0.22), 0 3px 10px rgba(0, 0, 0, 0.55);
+}
+
+.ww-orbit-node.is-speaking .ww-orbit-medallion {
+  border-color: var(--gold-bright);
+  animation: wwSpeakHalo 1.8s infinite;
+}
+
+.ww-orbit-node.is-selected .ww-orbit-medallion {
+  border-color: var(--gold-bright);
+  box-shadow: 0 0 0 2px rgba(240, 213, 144, 0.35), 0 0 14px rgba(240, 213, 144, 0.45);
+  transform: scale(1.08);
+}
+
+.ww-orbit-node.is-selected.danger-aim .ww-orbit-medallion {
+  border-color: var(--crimson);
+  box-shadow: 0 0 0 2px rgba(217, 75, 90, 0.4), 0 0 15px rgba(217, 75, 90, 0.5);
+}
+
+.ww-orbit-node.is-dead .ww-orbit-medallion {
+  filter: saturate(0.25);
+  opacity: 0.62;
+  border-style: dashed;
+  border-color: rgba(255, 255, 255, 0.22);
+}
+
+.empty-medallion {
+  background: rgba(16, 14, 24, 0.72);
+  border: 1px dashed var(--line-faint);
+  box-shadow: none;
+}
+
+.ww-empty-dot {
+  color: var(--text-faint);
+  font-size: 14px;
+}
+
+.ww-medallion-portrait {
+  width: 100%;
+  height: 100%;
+  border-radius: 999px;
+  object-fit: cover;
+  display: block;
+}
+
+.ww-medallion-initials {
+  font-family: var(--font-serif);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-main);
+  letter-spacing: 0.02em;
+}
+
+.is-nine .ww-medallion-initials {
+  font-size: 11.5px;
+}
+
+/* Permanent Numeric Seat Chip (1..9 ALWAYS visible) */
+.ww-seat-num-chip {
+  position: absolute;
+  top: -4px;
+  left: -4px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 3px;
+  border-radius: 999px;
+  background: var(--gold);
+  color: var(--gold-fg);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 16px;
+  text-align: center;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.65);
+}
+
+.ww-orbit-node.is-dead .ww-seat-num-chip,
+.muted-chip {
+  background: #353142;
+  color: var(--text-secondary);
+}
+
+/* Bottom-Right Status Micro-Seal on Medallion */
+.ww-orbit-flag {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 3px;
+  border-radius: 999px;
+  font-size: 9.5px;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.65);
+}
+
+.flag-gold {
+  background: var(--gold-bright);
+  color: var(--gold-fg);
+}
+
+.flag-danger {
+  background: var(--crimson);
+  color: #fff;
+}
+
+.flag-dead {
+  background: #3d1c24;
+  color: #ff98a4;
+  border: 1px solid var(--crimson-line);
+}
+
+.flag-done {
+  background: #183627;
+  color: var(--emerald);
+  border: 1px solid var(--emerald-line);
+}
+
+.flag-mic {
+  background: #1d192b;
+  border: 1px solid var(--gold-bright);
+  gap: 1.5px;
+  padding: 0 3px;
+}
+
+.ww-eq-mini {
+  width: 1.8px;
+  border-radius: 999px;
+  background: var(--gold-bright);
+}
+.ww-eq-mini.b1 {
+  animation: wwEqMini1 0.7s ease-in-out infinite;
+}
+.ww-eq-mini.b2 {
+  animation: wwEqMini2 0.56s ease-in-out infinite;
+}
+.ww-eq-mini.b3 {
+  animation: wwEqMini3 0.8s ease-in-out infinite;
+}
+
+.ww-orbit-name {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 58px;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: rgba(10, 9, 15, 0.82);
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+
+.is-nine .ww-orbit-name {
+  max-width: 48px;
+  font-size: 10px;
+}
+
+.faint-name {
+  color: var(--text-faint);
+}
+
+/* Untruncated Spotlight Inspector Bar */
+.ww-inspector-bar {
+  width: 100%;
+  padding: 5px 9px;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--line-faint);
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+  font-size: 11.5px;
+}
+
+.ww-inspector-seat {
   font-weight: 700;
   color: var(--gold-bright);
 }
 
-.ww-altar-sub {
-  font-size: 11.5px;
+.ww-inspector-name {
+  font-weight: 600;
+  color: var(--text-main);
+  word-break: break-all;
+}
+
+.ww-inspector-meta {
+  color: var(--text-muted);
+  margin-left: auto;
+  font-size: 11px;
+}
+
+/* ==========================================================================
+   De-Boxed Stage Action Altars & Full-Width Ergonomic Controls
+   ========================================================================== */
+
+.ww-altar-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 2px 1px;
+}
+
+.ww-altar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.ww-altar-heading {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-serif);
+  font-size: 13.5px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: var(--gold-bright);
+}
+
+.ww-altar-note {
+  font-size: 11px;
   color: var(--text-muted);
 }
 
-/* Buttons */
+/* Buttons (Single-line safe down to 240px width!) */
 .ww-btn {
   appearance: none;
   font-family: inherit;
-  border: 1px solid var(--border-strong);
-  background: var(--bg-card-elevated);
+  border: 1px solid var(--line-gold);
+  background: rgba(28, 25, 40, 0.9);
   color: var(--text-main);
-  font-size: 12.5px;
+  font-size: 12px;
   font-weight: 600;
-  padding: 8px 12px;
+  padding: 8px 11px;
   border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
+  white-space: nowrap;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
 }
 
 .ww-btn:hover:not(:disabled) {
-  border-color: var(--border-bright);
+  border-color: var(--line-bright);
   background: rgba(212, 175, 99, 0.12);
 }
 
@@ -816,44 +893,39 @@ input:focus-visible {
 }
 
 .ww-btn:disabled {
-  opacity: 0.45;
+  opacity: 0.42;
   cursor: not-allowed;
 }
 
 .ww-btn-gold {
-  background: linear-gradient(180deg, #dfc078 0%, #c69d4c 100%);
+  background: linear-gradient(180deg, #e5c67e 0%, #c19744 100%);
   border-color: var(--gold-bright);
   color: var(--gold-fg);
   font-weight: 700;
-  box-shadow: 0 2px 10px rgba(212, 175, 99, 0.22);
+  box-shadow: 0 3px 12px rgba(212, 175, 99, 0.2);
 }
 
 .ww-btn-gold:hover:not(:disabled) {
-  background: linear-gradient(180deg, #ecd08b 0%, #d4af63 100%);
-  border-color: #fff2cc;
+  background: linear-gradient(180deg, #f0d590 0%, #d4af63 100%);
 }
 
 .ww-btn-crimson {
-  background: linear-gradient(180deg, #e35b6b 0%, #be3444 100%);
-  border-color: #f28591;
+  background: linear-gradient(180deg, #df5867 0%, #b5303f 100%);
+  border-color: #f0828e;
   color: #ffffff;
   font-weight: 700;
-  box-shadow: 0 2px 10px rgba(224, 83, 99, 0.25);
+  box-shadow: 0 3px 12px rgba(217, 75, 90, 0.24);
 }
 
 .ww-btn-crimson:hover:not(:disabled) {
-  background: linear-gradient(180deg, #ee6e7d 0%, #cf3f50 100%);
+  background: linear-gradient(180deg, #ea6a79 0%, #c83a4a 100%);
 }
 
 .ww-btn-emerald {
-  background: linear-gradient(180deg, #5ec286 0%, #3d9963 100%);
-  border-color: #8ee0ae;
+  background: linear-gradient(180deg, #62c48c 0%, #3d9863 100%);
+  border-color: #93e4b4;
   color: #09170f;
   font-weight: 700;
-}
-
-.ww-btn-emerald:hover:not(:disabled) {
-  background: linear-gradient(180deg, #74d199 0%, #48ab71 100%);
 }
 
 .ww-btn-active {
@@ -862,21 +934,23 @@ input:focus-visible {
   color: var(--gold-bright);
 }
 
-.ww-btn-row {
-  display: flex;
-  gap: 7px;
-  align-items: center;
+.ww-w-full {
+  width: 100%;
+  white-space: normal;
+  text-align: center;
+  line-height: 1.3;
 }
 
 .ww-flex-1 {
   flex: 1;
 }
 
-.ww-w-full {
-  width: 100%;
+.ww-btn-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
 }
 
-/* Segmented Switcher */
 .ww-segmented {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -884,7 +958,7 @@ input:focus-visible {
   padding: 3px;
   border-radius: var(--radius-sm);
   background: var(--bg-sunken);
-  border: 1px solid var(--border);
+  border: 1px solid var(--line-faint);
 }
 
 .ww-seg-item {
@@ -893,34 +967,27 @@ input:focus-visible {
   border: 1px solid transparent;
   background: transparent;
   color: var(--text-muted);
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 600;
-  padding: 6px 8px;
-  border-radius: 6px;
+  padding: 5px 6px;
+  border-radius: 5px;
   cursor: pointer;
-  transition: all 0.15s ease;
 }
 
 .ww-seg-item.active {
-  background: var(--bg-card-elevated);
-  border-color: var(--border-strong);
+  background: var(--bg-elevated);
+  border-color: var(--line-gold);
   color: var(--gold-bright);
 }
 
-.ww-seg-item:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-/* Text Input */
 .ww-input {
   width: 100%;
   font-family: inherit;
-  border: 1px solid var(--border-strong);
+  border: 1px solid var(--line-gold);
   background: var(--bg-sunken);
   color: var(--text-main);
   border-radius: var(--radius-sm);
-  padding: 7px 10px;
+  padding: 7px 9px;
   font-size: 12px;
 }
 
@@ -929,26 +996,25 @@ input:focus-visible {
 }
 
 /* ==========================================================================
-   Werewolf Crimson Blood-Pact Chat
+   Werewolf Encrypted Blood-Pact Stream
    ========================================================================== */
 
 .ww-wolf-sanctum {
-  background: linear-gradient(180deg, rgba(46, 14, 22, 0.78) 0%, rgba(22, 11, 16, 0.9) 100%);
-  border: 1px solid var(--crimson-border);
+  background: linear-gradient(180deg, rgba(44, 14, 21, 0.65) 0%, rgba(16, 11, 16, 0.82) 100%);
+  border: 1px solid var(--crimson-line);
   border-radius: var(--radius-md);
-  padding: 9px;
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-}
-
-.ww-wolf-stream {
-  max-height: 112px;
-  overflow-y: auto;
+  padding: 8px;
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 4px 2px;
+}
+
+.ww-wolf-stream {
+  max-height: 104px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
 }
 
 .ww-chat-item {
@@ -956,7 +1022,7 @@ input:focus-visible {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  max-width: 90%;
+  max-width: 92%;
 }
 
 .ww-chat-item.mine {
@@ -965,49 +1031,43 @@ input:focus-visible {
 }
 
 .ww-chat-meta {
-  font-size: 11px;
-  color: #e8a8b0;
-  margin-bottom: 2px;
+  font-size: 10.5px;
+  color: #e4a3ab;
+  margin-bottom: 1px;
 }
 
 .ww-chat-bubble {
-  padding: 5px 9px;
-  border-radius: 9px;
-  font-size: 12px;
-  line-height: 1.4;
-  background: rgba(25, 23, 36, 0.92);
-  border: 1px solid rgba(224, 83, 99, 0.28);
+  padding: 4px 8px;
+  border-radius: 8px;
+  font-size: 11.5px;
+  line-height: 1.38;
+  background: rgba(20, 18, 30, 0.92);
+  border: 1px solid rgba(217, 75, 90, 0.28);
   color: var(--text-main);
   word-break: break-word;
 }
 
 .ww-chat-item.mine .ww-chat-bubble {
-  background: rgba(224, 83, 99, 0.24);
-  border-color: rgba(224, 83, 99, 0.52);
+  background: rgba(217, 75, 90, 0.24);
+  border-color: rgba(217, 75, 90, 0.5);
 }
 
-/* ==========================================================================
-   Day Speech Horizontal Mic Stepper
-   ========================================================================== */
-
+/* Horizontal Mic Track */
 .ww-mic-track {
   display: flex;
   align-items: center;
   gap: 4px;
   overflow-x: auto;
-  padding: 6px 8px;
+  padding: 5px 7px;
   border-radius: var(--radius-sm);
-  background: var(--bg-sunken);
-  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid var(--line-faint);
 }
 
 .ww-mic-node {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  padding: 2px 8px;
+  padding: 2px 7px;
   border-radius: 999px;
-  font-size: 11.5px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--text-muted);
   white-space: nowrap;
@@ -1015,8 +1075,8 @@ input:focus-visible {
 }
 
 .ww-mic-node.done {
-  background: rgba(255, 255, 255, 0.05);
   color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.05);
 }
 
 .ww-mic-node.current {
@@ -1025,49 +1085,73 @@ input:focus-visible {
   font-weight: 700;
 }
 
-.ww-mic-arrow {
-  color: var(--text-faint);
+.ww-sub-strip {
+  padding: 7px 9px;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid var(--line-faint);
+  font-size: 11.5px;
+  color: var(--text-secondary);
+}
+
+.ww-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
   font-size: 11px;
-  flex-shrink: 0;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--line-faint);
+  color: var(--text-secondary);
 }
 
-/* Witch Rescue Row & Seer Prophecy Scroll */
-.ww-sub-box {
-  padding: 8px 10px;
-  border-radius: var(--radius-sm);
-  background: var(--bg-sunken);
-  border: 1px solid var(--border);
-  font-size: 12px;
+.ww-badge.good {
+  background: var(--emerald-soft);
+  border-color: var(--emerald-line);
+  color: #9be8bd;
 }
 
-/* Toast Feedback */
-.ww-toast {
-  padding: 7px 10px;
-  border-radius: var(--radius-sm);
-  font-size: 12px;
+.ww-badge.wolf {
+  background: var(--crimson-soft);
+  border-color: var(--crimson-line);
+  color: #ffa1ac;
+}
+
+.ww-badge.gold {
   background: var(--gold-soft);
-  border: 1px solid var(--border-strong);
+  border-color: var(--line-gold);
+  color: var(--gold-bright);
+}
+
+/* Toast */
+.ww-toast {
+  padding: 6px 9px;
+  border-radius: var(--radius-sm);
+  font-size: 11.5px;
+  background: var(--gold-soft);
+  border: 1px solid var(--line-gold);
   color: var(--gold-bright);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 6px;
 }
 
 .ww-toast.err {
   background: var(--crimson-soft);
-  border-color: var(--crimson-border);
+  border-color: var(--crimson-line);
   color: #ffa1ac;
 }
 
 /* ==========================================================================
-   3. Collapsible Bottom Chronicle Drawer & Vote Flow Bars
+   3. Collapsible Bottom Chronicle Dock & Vote Flow Bars
    ========================================================================== */
 
 .ww-chronicle-dock {
   flex-shrink: 0;
-  background: var(--bg-card);
-  border-top: 1px solid var(--border-strong);
+  background: rgba(14, 13, 20, 0.96);
+  border-top: 1px solid var(--line-gold);
   z-index: 15;
 }
 
@@ -1076,48 +1160,47 @@ input:focus-visible {
   width: 100%;
   font-family: inherit;
   border: 0;
-  background: linear-gradient(180deg, rgba(32, 29, 46, 0.95) 0%, rgba(22, 20, 32, 0.98) 100%);
+  background: transparent;
   color: var(--text-secondary);
-  padding: 8px 12px;
+  padding: 8px 11px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 6px;
   cursor: pointer;
-  font-size: 12px;
-}
-
-.ww-chronicle-trigger:hover {
-  color: var(--gold-bright);
+  font-size: 11.5px;
 }
 
 .ww-chronicle-latest {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   color: var(--text-muted);
-  text-align: left;
+  min-width: 0;
   flex: 1;
 }
 
 .ww-chronicle-toggle-pill {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  font-size: 11.5px;
+  gap: 3px;
+  font-size: 11px;
   font-weight: 700;
   color: var(--gold-bright);
   flex-shrink: 0;
 }
 
 .ww-chronicle-body {
-  border-top: 1px solid var(--border);
-  padding: 9px 11px 11px;
+  border-top: 1px solid var(--line-faint);
+  padding: 8px 10px 10px;
   background: var(--bg-abyss);
-  max-height: 235px;
+  max-height: 220px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 7px;
 }
 
 .ww-chronicle-list {
@@ -1127,7 +1210,7 @@ input:focus-visible {
   display: flex;
   flex-direction: column;
   gap: 5px;
-  max-height: 175px;
+  max-height: 165px;
 }
 
 .ww-chronicle-list > * {
@@ -1135,11 +1218,11 @@ input:focus-visible {
 }
 
 .ww-event-row {
-  padding: 6px 8px;
-  border-radius: 7px;
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  font-size: 12px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid var(--line-faint);
+  font-size: 11.5px;
   color: var(--text-secondary);
   display: flex;
   align-items: baseline;
@@ -1147,32 +1230,32 @@ input:focus-visible {
 }
 
 .ww-event-tag {
-  font-size: 11px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
   font-weight: 700;
   color: var(--gold);
   flex-shrink: 0;
 }
 
-/* Visual Vote Flow Group */
 .ww-vote-round {
-  padding: 8px 9px;
+  padding: 7px 8px;
   border-radius: var(--radius-sm);
-  background: var(--bg-card);
-  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid var(--line-faint);
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 4px;
 }
 
 .ww-vote-flow-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  padding: 4px 7px;
-  border-radius: 6px;
+  gap: 6px;
+  padding: 3px 6px;
+  border-radius: 5px;
   background: var(--bg-sunken);
-  font-size: 11.5px;
+  font-size: 11px;
 }
 
 .ww-vote-voters {
@@ -1191,7 +1274,7 @@ input:focus-visible {
 }
 
 /* ==========================================================================
-   Handshake / Loading Medallion Screen
+   Handshake / Loading Tarot Showcase Screen
    ========================================================================== */
 
 .ww-wait-screen {
@@ -1201,35 +1284,29 @@ input:focus-visible {
   align-items: center;
   justify-content: center;
   text-align: center;
-  padding: 28px 22px;
+  padding: 24px 18px;
   gap: 12px;
 }
 
-.ww-crest-ring {
-  width: 64px;
-  height: 64px;
-  border-radius: 999px;
-  background: radial-gradient(circle, rgba(212, 175, 99, 0.2) 0%, rgba(25, 23, 36, 0.9) 70%);
-  border: 1px solid var(--border-bright);
-  box-shadow: var(--shadow-gold-glow);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--gold-bright);
-  position: relative;
+.ww-wait-tarot {
+  width: 136px;
+  aspect-ratio: 3 / 4;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--line-bright);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.7), 0 0 22px rgba(212, 175, 99, 0.16);
+  animation: wwLevitate 4.2s ease-in-out infinite;
 }
 
-.ww-crest-ring::after {
-  content: "";
-  position: absolute;
-  inset: -5px;
-  border-radius: 999px;
-  border: 1px dashed rgba(212, 175, 99, 0.35);
-  animation: wwSpinSlow 18s linear infinite;
+.ww-wait-tarot img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 /* ==========================================================================
-   /dev Multi-Perspective Tarot Workbench
+   /dev Multi-Perspective Tarot Workbench (Includes 264px Real-Width Toggle!)
    ========================================================================== */
 
 .dev-shell {
@@ -1248,43 +1325,50 @@ input:focus-visible {
   gap: 12px;
   margin-bottom: 14px;
   padding: 12px 16px;
-  background: var(--bg-card);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-card);
+  background: var(--bg-elevated);
+  border: 1px solid var(--line-gold);
+  border-radius: 12px;
 }
 
 .dev-frames-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(356px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(268px, 1fr));
   gap: 14px;
+  justify-items: center;
 }
 
 .dev-frame-wrap {
-  background: var(--bg-card);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-lg);
+  width: 100%;
+  max-width: 360px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--line-gold);
+  border-radius: 12px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  box-shadow: var(--shadow-card);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+
+.dev-frame-wrap.exact-host-width {
+  width: 264px;
+  max-width: 264px;
 }
 
 .dev-frame-header {
-  padding: 8px 12px;
-  background: linear-gradient(180deg, var(--bg-card-elevated) 0%, var(--bg-card) 100%);
-  border-bottom: 1px solid var(--border);
+  padding: 7px 11px;
+  background: var(--bg-page);
+  border-bottom: 1px solid var(--line-faint);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 700;
   color: var(--gold-bright);
 }
 
 .dev-iframe {
   width: 100%;
-  height: 620px;
+  height: 640px;
   border: 0;
   background: var(--bg-page);
 }

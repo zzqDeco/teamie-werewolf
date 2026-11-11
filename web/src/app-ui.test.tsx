@@ -147,13 +147,31 @@ describe("Dark Gothic Tarot App UI", () => {
 
     expect(container.textContent).toContain("我的底牌：狼人");
     expect(container.textContent).toContain("今晚刀3号？");
+    expect(container.querySelector(".ww-astrolabe-svg")).not.toBeNull();
 
-    // Flip Tarot identity plaque to conceal role
+    // Open full-scale Tarot artwork zoom modal and dismiss via Escape key
+    const zoomBtn = Array.from(container.querySelectorAll(".ww-ghost-chip")).find((b) =>
+      b.textContent?.includes("立绘"),
+    ) as HTMLButtonElement;
+    expect(zoomBtn).toBeDefined();
+    await act(async () => {
+      zoomBtn.click();
+    });
+    expect(container.querySelector(".ww-tarot-modal")).not.toBeNull();
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    });
+    expect(container.querySelector(".ww-tarot-modal")).toBeNull();
+
+    // Flip 3D Tarot identity card to conceal role
+    const card3dInner = container.querySelector(".ww-card-3d-inner") as HTMLElement;
+    expect(card3dInner.classList.contains("is-flipped")).toBe(false);
     const roleBtn = container.querySelector(".ww-tarot-id") as HTMLButtonElement;
     await act(async () => {
       roleBtn.click();
     });
     expect(container.textContent).toContain("命运底牌已暗置");
+    expect(card3dInner.classList.contains("is-flipped")).toBe(true);
 
     // Click Seat #3 (Carol) directly on the seat grid to aim
     const seatButtons = Array.from(
